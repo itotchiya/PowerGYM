@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function getUserGymId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gymId;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == 'superadmin';
+    }
+    
+    function isGymClient() {
+      return isAuthenticated() && getUserRole() == 'gymclient';
+    }
+    
+    function belongsToGym(gymId) {
+      return isGymClient() && getUserGymId() == gymId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isSuperAdmin();
+    }
+    
+    // Sessions collection
+    match /sessions/{sessionId} {
+      allow read, write: if isAuthenticated() && 
+        get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+    }
+    
+    // Gyms collection
+    match /gyms/{gymId} {
+      allow read: if isSuperAdmin() || belongsToGym(gymId);
+      allow write: if isSuperAdmin();
+      
+      // Members subcollection
+      match /members/{memberId} {
+        allow read: if isSuperAdmin() || belongsToGym(gymId);
+        allow create: if isSuperAdmin() || belongsToGym(gymId);
+        allow update: if isSuperAdmin() || belongsToGym(gymId);
+        allow delete: if isSuperAdmin() || belongsToGym(gymId);
+        
+        // Subscriptions subcollection
+        match /subscriptions/{subscriptionId} {
+          allow read: if isSuperAdmin() || belongsToGym(gymId);
+          allow write: if isSuperAdmin() || belongsToGym(gymId);
+        }
+        
+        // Payments subcollection
+        match /payments/{paymentId} {
+          allow read: if isSuperAdmin() || belongsToGym(gymId);
+          allow create: if isSuperAdmin() || belongsToGym(gymId);
+        }
+      }
+      
+      // Plans subcollection
+      match /plans/{planId} {
+        allow read: if isSuperAdmin() || belongsToGym(gymId);
+        allow write: if isSuperAdmin() || belongsToGym(gymId);
+      }
+      
+      // Warnings subcollection
+      match /warnings/{warningId} {
+        allow read: if isSuperAdmin() || belongsToGym(gymId);
+        allow create: if isSuperAdmin() || belongsToGym(gymId);
+        allow update: if isSuperAdmin() || belongsToGym(gymId);
+      }
+    }
+  }
+}
