@@ -5,31 +5,16 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RoleSelectionPage } from '@/pages/RoleSelectionPage';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-// Temporary dashboard placeholder
-function DashboardPlaceholder() {
-  const { userProfile, session, signOut } = useAuth();
+// Dashboard Pages
+import { GymDashboard } from '@/pages/dashboard/GymDashboard';
+import { SuperAdminDashboard } from '@/pages/superadmin/SuperAdminDashboard';
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h1 className="text-3xl font-bold mb-4">Dashboard</h1>
-          <div className="space-y-2">
-            <p><strong>Role:</strong> {userProfile?.role}</p>
-            {session && <p><strong>Subrole:</strong> {session.subrole}</p>}
-            {userProfile?.gymId && <p><strong>Gym ID:</strong> {userProfile.gymId}</p>}
-          </div>
-          <button
-            onClick={signOut}
-            className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-          >
-            Sign Out
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Gym Client Pages
+import { MembersPage } from '@/pages/members/MembersPage';
+import { ExpiringSoonPage } from '@/pages/ExpiringSoonPage';
+import { WarningsPage } from '@/pages/WarningsPage';
+import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
+import { PlansPage } from '@/pages/PlansPage';
 
 function App() {
   const { user, userProfile, session, loading } = useAuth();
@@ -49,8 +34,18 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={!user ? <LandingPage /> : <Navigate to="/dashboard" />} />
-        <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
+        <Route
+          path="/"
+          element={!user ? <LandingPage /> : (
+            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> : <Navigate to="/dashboard" />
+          )}
+        />
+        <Route
+          path="/login"
+          element={!user ? <LoginPage /> : (
+            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> : <Navigate to="/dashboard" />
+          )}
+        />
 
         {/* Role Selection */}
         <Route
@@ -64,12 +59,68 @@ function App() {
           }
         />
 
-        {/* Protected Routes */}
+        {/* Super Admin Routes */}
+        <Route
+          path="/superadmin/dashboard"
+          element={
+            <ProtectedRoute requireSuperAdmin>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Gym Client Routes */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPlaceholder />
+              <GymDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/members"
+          element={
+            <ProtectedRoute>
+              <MembersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/expiring-soon"
+          element={
+            <ProtectedRoute>
+              <ExpiringSoonPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Owner-Only Routes */}
+        <Route
+          path="/warnings"
+          element={
+            <ProtectedRoute requireOwner>
+              <WarningsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/deleted"
+          element={
+            <ProtectedRoute requireOwner>
+              <DeletedMembersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/plans"
+          element={
+            <ProtectedRoute requireOwner>
+              <PlansPage />
             </ProtectedRoute>
           }
         />
