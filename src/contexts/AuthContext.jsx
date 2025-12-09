@@ -17,20 +17,32 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                setUser(firebaseUser);
+            try {
+                if (firebaseUser) {
+                    setUser(firebaseUser);
 
-                // Fetch user profile from Firestore
-                const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-                if (userDoc.exists()) {
-                    setUserProfile(userDoc.data());
+                    // Fetch user profile from Firestore
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+                        if (userDoc.exists()) {
+                            setUserProfile(userDoc.data());
+                        } else {
+                            console.warn('User document does not exist in Firestore for UID:', firebaseUser.uid);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user profile:', error);
+                        // Optional: Handle error, e.g., show notification
+                    }
+                } else {
+                    setUser(null);
+                    setUserProfile(null);
+                    setSession(null);
                 }
-            } else {
-                setUser(null);
-                setUserProfile(null);
-                setSession(null);
+            } catch (error) {
+                console.error('Auth state change error:', error);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return unsubscribe;
