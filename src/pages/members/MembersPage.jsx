@@ -50,11 +50,14 @@ import {
     serverTimestamp,
     runTransaction
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
-import { Search, Download, MoreVertical, AlertTriangle, Edit, RefreshCw, DollarSign, Trash2, Plus, Phone, Shield, ShieldAlert, Check, ArrowUpDown } from 'lucide-react';
+import { Search, Download, MoreVertical, AlertTriangle, Edit, RefreshCw, DollarSign, Trash2, Plus, Phone, Shield, ShieldAlert, Check, ArrowUpDown, Camera, Upload, X, FileText } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { ImageCropper } from '@/components/ui/image-cropper';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 
 export function MembersPage() {
     const navigate = useNavigate();
@@ -77,6 +80,15 @@ export function MembersPage() {
     const [showPaymentDialog, setShowPaymentDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [selectedMember, setSelectedMember] = useState(null);
+
+    // CNI upload states for Add Member form
+    const [showCropDialog, setShowCropDialog] = useState(false);
+    const [rawImageSrc, setRawImageSrc] = useState(null);
+    const [cniFile, setCniFile] = useState(null);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     // Forms
     const [memberForm, setMemberForm] = useState({
@@ -349,11 +361,29 @@ export function MembersPage() {
                 endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
             };
 
+            // Upload CNI file if provided
+            let cniDocumentUrl = null;
+            if (cniFile) {
+                try {
+                    const safeFirstName = memberForm.firstName.replace(/[^a-z0-9]/gi, '');
+                    const safeLastName = memberForm.lastName.replace(/[^a-z0-9]/gi, '');
+                    const fileExtension = cniFile.name.split('.').pop();
+                    const fileName = `${newMemberId}-${safeFirstName}-${safeLastName}-CNI.${fileExtension}`;
+                    const storageRef = ref(storage, `gyms/${userProfile.gymId}/cni-documents/${fileName}`);
+                    await uploadBytes(storageRef, cniFile);
+                    cniDocumentUrl = await getDownloadURL(storageRef);
+                } catch (uploadError) {
+                    console.error('CNI upload failed:', uploadError);
+                    // Continue without CNI, user can upload later
+                }
+            }
+
             const newMember = {
                 memberId: newMemberId,
                 firstName: memberForm.firstName,
                 lastName: memberForm.lastName,
                 cniId: memberForm.cniId || '',
+                cniDocumentUrl: cniDocumentUrl,
                 email: memberForm.email || '',
                 phone: memberForm.phone,
                 currentSubscription: initialSubscription,
@@ -374,6 +404,9 @@ export function MembersPage() {
             };
 
             await addDoc(collection(db, `gyms/${userProfile.gymId}/members`), newMember);
+
+            // Clear CNI file state
+            setCniFile(null);
 
             toast.success(`Member #${newMemberId} added`);
             setShowAddMemberDialog(false);
@@ -662,166 +695,283 @@ export function MembersPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredMembers.map(member => {
-                                    const status = getMemberStatus(member);
-                                    const plan = plans.find(p => p.id === member.currentSubscription?.planId);
-                                    const warnings = member.warnings || [];
-                                    const outstanding = member.outstandingBalance || 0;
-                                    const insurancePaid = member.insuranceStatus === 'active';
+                                {filteredMembers
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map(member => {
+                                        const status = getMemberStatus(member);
+                                        const plan = plans.find(p => p.id === member.currentSubscription?.planId);
+                                        const warnings = member.warnings || [];
+                                        const outstanding = member.outstandingBalance || 0;
+                                        const insurancePaid = member.insuranceStatus === 'active';
 
-                                    return (
-                                        <TableRow key={member.id}>
-                                            <TableCell className="font-mono text-xs text-muted-foreground">
-                                                #{member.memberId || '-'}
-                                            </TableCell>
-                                            <TableCell
-                                                className="cursor-pointer"
-                                                onClick={() => navigate(`/members/${member.id}`)}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-primary hover:underline">
-                                                        {member.firstName} {member.lastName}
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                        <Phone className="h-3 w-3" /> {member.phone}
-                                                    </span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary" className="font-normal border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 hover:bg-slate-200">
-                                                    {plan?.name || 'No Plan'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {outstanding > 0 ? (
-                                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
-                                                        {outstanding} MAD Due
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800 dark:text-emerald-400">
-                                                        Paid
-                                                    </Badge>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {insurancePaid ? (
-                                                    <div className="flex justify-center" title="Insurance Paid">
-                                                        <div className="p-1.5 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                            <Shield className="h-4 w-4" />
-                                                        </div>
+                                        return (
+                                            <TableRow key={member.id}>
+                                                <TableCell className="font-mono text-xs text-muted-foreground">
+                                                    #{member.memberId || '-'}
+                                                </TableCell>
+                                                <TableCell
+                                                    className="cursor-pointer"
+                                                    onClick={() => navigate(`/members/${member.id}`)}
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-primary hover:underline">
+                                                            {member.firstName} {member.lastName}
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                            <Phone className="h-3 w-3" /> {member.phone}
+                                                        </span>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex justify-center" title="Insurance Unpaid">
-                                                        <div className="p-1.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 animate-pulse">
-                                                            <ShieldAlert className="h-4 w-4" />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="font-normal border-slate-200 dark:border-slate-700">
+                                                        {plan?.name || 'No Plan'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {outstanding > 0 ? (
+                                                        <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50/50 dark:border-amber-700 dark:text-amber-400 dark:bg-amber-900/20">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+                                                            {outstanding} MAD Due
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                                                            Paid
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {insurancePaid ? (
+                                                        <div className="flex justify-center" title="Insurance Paid">
+                                                            <div className="p-1.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                                                <Shield className="h-3.5 w-3.5" />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {status === 'active' ? (
-                                                    <Badge className="bg-emerald-500 hover:bg-emerald-600 border-0">
-                                                        Active
-                                                    </Badge>
-                                                ) : status === 'expiring' ? (
-                                                    <Badge className="bg-amber-500 hover:bg-amber-600 border-0">
-                                                        Expiring Soon
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="destructive">
-                                                        Expired
-                                                    </Badge>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-sm">
-                                                {member.currentSubscription?.startDate
-                                                    ? new Date(member.currentSubscription.startDate).toLocaleDateString()
-                                                    : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-sm">
-                                                {member.currentSubscription?.endDate
-                                                    ? new Date(member.currentSubscription.endDate).toLocaleDateString()
-                                                    : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {warnings.length > 0 && (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                <Badge variant="destructive" className="cursor-help">
-                                                                    {warnings.length}
-                                                                </Badge>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent className="max-w-xs">
-                                                                <div className="space-y-2">
-                                                                    {warnings.map((w, i) => (
-                                                                        <div key={i} className="text-xs border-b last:border-0 pb-1 last:pb-0">
-                                                                            <p className="font-semibold">{new Date(w.dateTime).toLocaleDateString()} {new Date(w.dateTime).toLocaleTimeString()}</p>
-                                                                            <p>{w.message}</p>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        {(isManager() || isOwner()) && (
-                                                            <DropdownMenuItem onClick={() => openWarningDialog(member)}>
-                                                                <AlertTriangle className="mr-2 h-4 w-4" />
-                                                                Add Warning
-                                                            </DropdownMenuItem>
-                                                        )}
-                                                        {isOwner() && (
-                                                            <>
-                                                                <DropdownMenuItem onClick={() => openEditDialog(member)}>
-                                                                    <Edit className="mr-2 h-4 w-4" />
-                                                                    Edit Member
-                                                                </DropdownMenuItem>
+                                                    ) : (
+                                                        <div className="flex justify-center" title="Insurance Unpaid">
+                                                            <div className="p-1.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800">
+                                                                <ShieldAlert className="h-3.5 w-3.5" />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {status === 'active' ? (
+                                                        <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                                                            Active
+                                                        </Badge>
+                                                    ) : status === 'expiring' ? (
+                                                        <Badge variant="outline" className="border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
+                                                            Expiring
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
+                                                            Expired
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-sm">
+                                                    {member.currentSubscription?.startDate
+                                                        ? new Date(member.currentSubscription.startDate).toLocaleDateString()
+                                                        : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-sm">
+                                                    {member.currentSubscription?.endDate
+                                                        ? new Date(member.currentSubscription.endDate).toLocaleDateString()
+                                                        : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {warnings.length > 0 && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <Badge variant="destructive" className="cursor-help">
+                                                                        {warnings.length}
+                                                                    </Badge>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent className="max-w-xs">
+                                                                    <div className="space-y-2">
+                                                                        {warnings.map((w, i) => (
+                                                                            <div key={i} className="text-xs border-b last:border-0 pb-1 last:pb-0">
+                                                                                <p className="font-semibold">{new Date(w.dateTime).toLocaleDateString()} {new Date(w.dateTime).toLocaleTimeString()}</p>
+                                                                                <p>{w.message}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            {(isManager() || isOwner()) && (
                                                                 <DropdownMenuItem
-                                                                    onClick={() => openPaymentDialog(member)}
-                                                                    disabled={outstanding <= 0 && member.insuranceStatus === 'active'}
-                                                                    className={outstanding <= 0 && member.insuranceStatus === 'active' ? "opacity-50 cursor-not-allowed" : ""}
+                                                                    onClick={() => openWarningDialog(member)}
+                                                                    className="text-amber-600 dark:text-amber-400 focus:text-amber-700 dark:focus:text-amber-300"
                                                                 >
-                                                                    <DollarSign className="mr-2 h-4 w-4" />
-                                                                    Add Payment
+                                                                    <AlertTriangle className="mr-2 h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                                                    Add Warning
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem onClick={() => openDeleteDialog(member)} className="text-destructive">
-                                                                    <Trash2 className="mr-2 h-4 w-4" />
-                                                                    Delete
-                                                                </DropdownMenuItem>
-                                                            </>
-                                                        )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
+                                                            )}
+                                                            {isOwner() && (
+                                                                <>
+                                                                    <DropdownMenuItem onClick={() => openEditDialog(member)}>
+                                                                        <Edit className="mr-2 h-4 w-4" />
+                                                                        Edit Member
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => openPaymentDialog(member)}
+                                                                        disabled={outstanding <= 0 && member.insuranceStatus === 'active'}
+                                                                        className={outstanding <= 0 && member.insuranceStatus === 'active' ? "opacity-50 cursor-not-allowed" : ""}
+                                                                    >
+                                                                        <DollarSign className="mr-2 h-4 w-4" />
+                                                                        Add Payment
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => openDeleteDialog(member)}
+                                                                        className="text-red-500 dark:text-red-400 focus:text-red-600 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-950"
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4 text-red-500 dark:text-red-400" />
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                </>
+                                                            )}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                             </TableBody>
                         </Table>
                     </CardContent>
+
+                    {/* Pagination */}
+                    {filteredMembers.length > 0 && (
+                        <div className="flex items-center justify-between px-4 py-3 border-t">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
+                                <span>Show</span>
+                                <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+                                    <SelectTrigger className="w-[65px] h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="10">10</SelectItem>
+                                        <SelectItem value="15">15</SelectItem>
+                                        <SelectItem value="20">20</SelectItem>
+                                        <SelectItem value="50">50</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <span className="whitespace-nowrap">of {filteredMembers.length} members</span>
+                            </div>
+
+                            <Pagination>
+                                <PaginationContent>
+                                    <PaginationItem>
+                                        <PaginationPrevious
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                            className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                        />
+                                    </PaginationItem>
+
+                                    {(() => {
+                                        const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
+                                        const pages = [];
+
+                                        if (totalPages <= 5) {
+                                            for (let i = 1; i <= totalPages; i++) {
+                                                pages.push(
+                                                    <PaginationItem key={i}>
+                                                        <PaginationLink onClick={() => setCurrentPage(i)} isActive={currentPage === i}>
+                                                            {i}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                );
+                                            }
+                                        } else {
+                                            // Always show first page
+                                            pages.push(
+                                                <PaginationItem key={1}>
+                                                    <PaginationLink onClick={() => setCurrentPage(1)} isActive={currentPage === 1}>
+                                                        1
+                                                    </PaginationLink>
+                                                </PaginationItem>
+                                            );
+
+                                            if (currentPage > 3) {
+                                                pages.push(<PaginationItem key="start-ellipsis"><PaginationEllipsis /></PaginationItem>);
+                                            }
+
+                                            // Show pages around current
+                                            const start = Math.max(2, currentPage - 1);
+                                            const end = Math.min(totalPages - 1, currentPage + 1);
+
+                                            for (let i = start; i <= end; i++) {
+                                                pages.push(
+                                                    <PaginationItem key={i}>
+                                                        <PaginationLink onClick={() => setCurrentPage(i)} isActive={currentPage === i}>
+                                                            {i}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                );
+                                            }
+
+                                            if (currentPage < totalPages - 2) {
+                                                pages.push(<PaginationItem key="end-ellipsis"><PaginationEllipsis /></PaginationItem>);
+                                            }
+
+                                            // Always show last page
+                                            pages.push(
+                                                <PaginationItem key={totalPages}>
+                                                    <PaginationLink onClick={() => setCurrentPage(totalPages)} isActive={currentPage === totalPages}>
+                                                        {totalPages}
+                                                    </PaginationLink>
+                                                </PaginationItem>
+                                            );
+                                        }
+
+                                        return pages;
+                                    })()}
+
+                                    <PaginationItem>
+                                        <PaginationNext
+                                            onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredMembers.length / itemsPerPage), p + 1))}
+                                            disabled={currentPage >= Math.ceil(filteredMembers.length / itemsPerPage)}
+                                            className={currentPage >= Math.ceil(filteredMembers.length / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                        />
+                                    </PaginationItem>
+                                </PaginationContent>
+                            </Pagination>
+                        </div>
+                    )}
                 </Card>
             </div>
 
             {/* Add Member Dialog */}
             <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
+                <DialogContent className="max-w-lg w-full h-[100dvh] sm:h-[85vh] p-0 gap-0 overflow-hidden flex flex-col">
+                    <DialogHeader className="px-6 py-4 border-b shrink-0">
                         <DialogTitle>Add New Member</DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleAddMember}>
-                        <div className="grid gap-6 py-4">
+                    <form onSubmit={handleAddMember} className="flex flex-col flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                            {/* Section 1: Member Information */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-medium flex items-center gap-2"><span className="bg-primary/10 text-primary p-1 rounded">1</span> Member Information</h3>
+                                <h3 className="text-sm font-medium flex items-center gap-2">
+                                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-bold">1</span>
+                                    Member Information
+                                </h3>
                                 <Separator />
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -848,8 +998,13 @@ export function MembersPage() {
                                     <Input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} />
                                 </div>
                             </div>
+
+                            {/* Section 2: Plan & Payment */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-medium flex items-center gap-2"><span className="bg-primary/10 text-primary p-1 rounded">2</span> Plan & Payment</h3>
+                                <h3 className="text-sm font-medium flex items-center gap-2">
+                                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-bold">2</span>
+                                    Plan & Payment
+                                </h3>
                                 <Separator />
                                 <div className="space-y-2">
                                     <Label>Select Membership Plan</Label>
@@ -862,17 +1017,19 @@ export function MembersPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex items-center space-x-2 border p-3 rounded-lg bg-muted/20">
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg bg-muted/20">
                                     <Checkbox checked={memberForm.includeInsurance} onCheckedChange={(c) => setMemberForm({ ...memberForm, includeInsurance: c })} />
-                                    <Label>Include Insurance Fee (50 MAD)</Label>
-                                    {memberForm.includeInsurance && <Input className="w-20 h-8" value={memberForm.insuranceFee} onChange={(e) => setMemberForm({ ...memberForm, insuranceFee: e.target.value })} />}
+                                    <Label className="flex-1">Include Insurance Fee (50 MAD)</Label>
+                                    {memberForm.includeInsurance && (
+                                        <Input className="w-20 h-8" value={memberForm.insuranceFee} onChange={(e) => setMemberForm({ ...memberForm, insuranceFee: e.target.value })} />
+                                    )}
                                 </div>
                                 <div className="flex items-center justify-between border p-3 rounded-lg bg-muted/20">
                                     <Label>Payment Status</Label>
                                     <div className="flex items-center gap-2">
-                                        <Label className={!memberForm.isFullyPaid ? "font-bold" : "text-muted"}>Partial</Label>
+                                        <Label className={!memberForm.isFullyPaid ? "font-bold" : "text-muted-foreground"}>Partial</Label>
                                         <Switch checked={memberForm.isFullyPaid} onCheckedChange={(c) => setMemberForm({ ...memberForm, isFullyPaid: c })} />
-                                        <Label className={memberForm.isFullyPaid ? "font-bold" : "text-muted"}>Full</Label>
+                                        <Label className={memberForm.isFullyPaid ? "font-bold" : "text-muted-foreground"}>Full</Label>
                                     </div>
                                 </div>
                                 {!memberForm.isFullyPaid && (
@@ -882,11 +1039,86 @@ export function MembersPage() {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Section 3: CNI Document */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-medium flex items-center gap-2">
+                                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-bold">3</span>
+                                    CNI Document (Optional)
+                                </h3>
+                                <Separator />
+                                {!cniFile ? (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="file" accept="image/*" className="hidden" id="add-member-gallery"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file && file.type.startsWith('image/')) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = () => { setRawImageSrc(reader.result); setShowCropDialog(true); };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                        <input type="file" accept="image/*" capture="environment" className="hidden" id="add-member-camera"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = () => { setRawImageSrc(reader.result); setShowCropDialog(true); };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                                e.target.value = '';
+                                            }}
+                                        />
+                                        <div onClick={() => document.getElementById('add-member-gallery').click()}
+                                            className="cursor-pointer flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg hover:border-primary hover:bg-primary/5 transition-all">
+                                            <Upload className="h-5 w-5 text-muted-foreground" />
+                                            <span className="text-sm">Upload</span>
+                                        </div>
+                                        <div onClick={() => document.getElementById('add-member-camera').click()}
+                                            className="cursor-pointer flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg hover:border-primary hover:bg-primary/5 transition-all">
+                                            <Camera className="h-5 w-5 text-muted-foreground" />
+                                            <span className="text-sm">Camera</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                        <FileText className="h-6 w-6 text-muted-foreground shrink-0" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium">CNI Document Ready</p>
+                                            <p className="text-xs text-muted-foreground">{cniFile.name}</p>
+                                        </div>
+                                        <Button type="button" variant="ghost" size="sm" onClick={() => setCniFile(null)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <DialogFooter><Button variant="outline" onClick={() => setShowAddMemberDialog(false)}>Cancel</Button><Button type="submit">Add Member</Button></DialogFooter>
+                        <DialogFooter className="px-6 py-4 border-t shrink-0 flex gap-2">
+                            <Button type="button" variant="outline" onClick={() => { setShowAddMemberDialog(false); setCniFile(null); }}>Cancel</Button>
+                            <Button type="submit">Add Member</Button>
+                        </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Image Cropper for Add Member CNI */}
+            <ImageCropper
+                open={showCropDialog}
+                onClose={() => {
+                    setShowCropDialog(false);
+                    setRawImageSrc(null);
+                }}
+                imageSrc={rawImageSrc}
+                onCropComplete={(croppedFile) => {
+                    setCniFile(croppedFile);
+                    setShowCropDialog(false);
+                    setRawImageSrc(null);
+                }}
+                aspectRatio={1.59}
+            />
 
             {/* Add Payment Dialog */}
             <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
@@ -1007,7 +1239,7 @@ export function MembersPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Add Warning Dialog (Simplified) */}
+            {/* Add Warning Dialog */}
             <Dialog open={showWarningDialog} onOpenChange={setShowWarningDialog}>
                 <DialogContent>
                     <DialogHeader>

@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Search, Bell, User, Settings, LogOut, Dumbbell, ShieldCheck, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
+import { NotificationsMenu } from '@/components/notifications/NotificationsMenu';
 
 export function TopHeader() {
     const { user, userProfile, session, signOut, setSession } = useAuth();
@@ -46,7 +47,8 @@ export function TopHeader() {
 
     const getGymName = () => {
         if (userProfile?.role === 'superadmin') return 'Super Admin';
-        return session?.gymName || 'PowerGYM';
+        // Use userProfile.gymName for real-time updates when name is changed
+        return userProfile?.gymName || session?.gymName || 'PowerGYM';
     };
 
     const getUserRole = () => {
@@ -135,9 +137,7 @@ export function TopHeader() {
                         <ThemeSwitch />
 
                         {/* Notifications */}
-                        <Button variant="ghost" size="icon">
-                            <Bell className="h-5 w-5" />
-                        </Button>
+                        <NotificationsMenu />
 
                         {/* Profile Dropdown */}
                         <DropdownMenu>

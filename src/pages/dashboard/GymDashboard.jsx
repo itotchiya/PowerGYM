@@ -348,6 +348,33 @@ export function GymDashboard() {
                     </Card>
                 </div>
 
+                {/* Charts Section - Visible to both Manager and Owner */}
+                {(isOwner() || isManager()) && (
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold">Member Analytics</h3>
+                                <p className="text-sm text-muted-foreground">Distribution and status overview</p>
+                            </div>
+                            <Select value={dateFilter} onValueChange={setDateFilter}>
+                                <SelectTrigger className="w-[160px]">
+                                    <SelectValue placeholder="Filter" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all_time">All Time</SelectItem>
+                                    <SelectItem value="this_month">This Month</SelectItem>
+                                    <SelectItem value="this_year">This Year</SelectItem>
+                                    <SelectItem value="year_to_now">Year to Date</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <PlanDistributionChart members={filteredMembersForCharts} plans={plans} />
+                            <MemberStatusChart members={filteredMembersForCharts} />
+                        </div>
+                    </div>
+                )}
+
                 {/* Owner-Only Revenue Insights */}
                 {isOwner() && (
                     <div className="space-y-6">

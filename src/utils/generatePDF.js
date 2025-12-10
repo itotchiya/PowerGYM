@@ -1,5 +1,56 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+
+/**
+ * Helper function to draw a simple table
+ */
+function drawTable(doc, headers, data, startY, options = {}) {
+    const { margin = 14, cellPadding = 4, headerBg = [31, 41, 55], fontSize = 9, rowHeight = 8 } = options;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const tableWidth = pageWidth - margin * 2;
+    const colWidth = tableWidth / headers.length;
+
+    let y = startY;
+
+    // Draw header
+    doc.setFillColor(...headerBg);
+    doc.rect(margin, y, tableWidth, rowHeight + cellPadding, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(fontSize);
+    doc.setFont('helvetica', 'bold');
+
+    headers.forEach((header, i) => {
+        doc.text(header, margin + i * colWidth + cellPadding, y + rowHeight);
+    });
+
+    y += rowHeight + cellPadding + 2;
+
+    // Draw rows
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+
+    data.forEach((row, rowIndex) => {
+        // Alternating row background
+        if (rowIndex % 2 === 0) {
+            doc.setFillColor(249, 250, 251);
+            doc.rect(margin, y - 2, tableWidth, rowHeight + 2, 'F');
+        }
+
+        row.forEach((cell, i) => {
+            const text = String(cell || '').substring(0, 25); // Truncate long text
+            doc.text(text, margin + i * colWidth + cellPadding, y + 4);
+        });
+
+        y += rowHeight + 2;
+
+        // Check for page break
+        if (y > doc.internal.pageSize.getHeight() - 30) {
+            doc.addPage();
+            y = 20;
+        }
+    });
+
+    return y + 5;
+}
 
 /**
  * Generate a professional Member "Fiche Technique" PDF
@@ -11,7 +62,7 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         const pageWidth = doc.internal.pageSize.getWidth();
 
         // Header
-        doc.setFillColor(31, 41, 55); // Dark gray
+        doc.setFillColor(31, 41, 55);
         doc.rect(0, 0, pageWidth, 40, 'F');
 
         doc.setTextColor(255, 255, 255);
@@ -23,18 +74,16 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.setFont('helvetica', 'normal');
         doc.text('Fiche Technique - Member Technical File', 14, 30);
 
-        // Generation date
         doc.setFontSize(10);
         doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 14, 30, { align: 'right' });
 
-        // Reset text color
         doc.setTextColor(0, 0, 0);
 
         // Member Info Section
         let yPos = 55;
 
         doc.setFillColor(243, 244, 246);
-        doc.rect(14, yPos - 5, pageWidth - 28, 60, 'F');
+        doc.rect(14, yPos - 5, pageWidth - 28, 55, 'F');
 
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
@@ -43,43 +92,42 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
 
-        // Get initial payment (first payment in array)
+        // Get initial payment
         const firstPayment = member.payments && member.payments.length > 0 ? member.payments[0] : null;
         const initialAdvance = firstPayment ? firstPayment.amount : 0;
 
-        // Current plan info
         const currentPlan = member.currentSubscription?.planName || 'N/A';
         const planPrice = member.currentSubscription?.planPrice || member.currentSubscription?.price || 0;
 
         const memberInfo = [
             ['Full Name:', `${member.firstName || ''} ${member.lastName || ''}`],
-            ['Member ID:', member.memberId || member.id || 'N/A'],
+            ['Member ID:', String(member.memberId || member.id || 'N/A')],
             ['CNI ID:', member.cniId || 'N/A'],
             ['Phone:', member.phone || 'N/A'],
             ['Email:', member.email || 'N/A'],
             ['Current Plan:', currentPlan],
             ['Plan Price:', `${planPrice} MAD`],
-            ['Insurance:', member.insuranceStatus === 'active' ? 'Paid' : (member.insuranceStatus === 'none' ? 'Not Included' : 'Unpaid')],
+            ['Insurance:', member.insuranceStatus === 'active' ? 'Paid' : 'Unpaid'],
         ];
 
         let infoY = yPos + 15;
         memberInfo.forEach(([label, value], i) => {
-            const xPos = i % 2 === 0 ? 20 : 105;
+            const xPos = i % 2 === 0 ? 20 : 110;
             if (i % 2 === 0 && i > 0) infoY += 10;
             doc.setFont('helvetica', 'bold');
             doc.text(label, xPos, infoY);
             doc.setFont('helvetica', 'normal');
-            doc.text(String(value), xPos + 35, infoY);
+            doc.text(String(value), xPos + 28, infoY);
         });
 
-        yPos += 75;
+        yPos += 70;
 
-        // Financial Summary - 3 columns
+        // Financial Summary - 3 boxes
         const boxWidth = (pageWidth - 42) / 3;
 
         // Initial Advance
-        doc.setFillColor(219, 234, 254); // Light blue
-        doc.rect(14, yPos, boxWidth, 30, 'F');
+        doc.setFillColor(219, 234, 254);
+        doc.rect(14, yPos, boxWidth, 28, 'F');
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 64, 175);
@@ -88,20 +136,18 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.text(`${initialAdvance} MAD`, 18, yPos + 22);
 
         // Total Paid
-        doc.setFillColor(220, 252, 231); // Light green
-        doc.rect(14 + boxWidth + 7, yPos, boxWidth, 30, 'F');
+        doc.setFillColor(220, 252, 231);
+        doc.rect(14 + boxWidth + 7, yPos, boxWidth, 28, 'F');
         doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
         doc.setTextColor(22, 163, 74);
         doc.text('Total Paid', 14 + boxWidth + 11, yPos + 10);
         doc.setFontSize(14);
         doc.text(`${member.totalPaid || 0} MAD`, 14 + boxWidth + 11, yPos + 22);
 
-        // Outstanding Balance
-        doc.setFillColor(254, 226, 226); // Light red
-        doc.rect(14 + (boxWidth + 7) * 2, yPos, boxWidth, 30, 'F');
+        // Outstanding
+        doc.setFillColor(254, 226, 226);
+        doc.rect(14 + (boxWidth + 7) * 2, yPos, boxWidth, 28, 'F');
         doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
         doc.setTextColor(220, 38, 38);
         doc.text('Outstanding', 14 + (boxWidth + 7) * 2 + 4, yPos + 10);
         doc.setFontSize(14);
@@ -110,11 +156,11 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.setTextColor(0, 0, 0);
         yPos += 40;
 
-        // Subscription History Table
+        // Subscription History
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Subscription History', 14, yPos);
-        yPos += 5;
+        yPos += 8;
 
         const subscriptionData = (member.subscriptionHistory || []).slice().reverse().map(sub => [
             sub.planName || 'Unknown',
@@ -124,48 +170,35 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         ]);
 
         if (subscriptionData.length > 0) {
-            doc.autoTable({
-                startY: yPos,
-                head: [['Plan', 'Start Date', 'End Date', 'Price']],
-                body: subscriptionData,
-                theme: 'striped',
-                headStyles: { fillColor: [31, 41, 55] },
-                margin: { left: 14, right: 14 },
-            });
-            yPos = doc.lastAutoTable.finalY + 15;
+            yPos = drawTable(doc, ['Plan', 'Start Date', 'End Date', 'Price'], subscriptionData, yPos);
         } else {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'italic');
-            doc.text('No subscription history available.', 14, yPos + 10);
-            yPos += 20;
+            doc.text('No subscription history available.', 14, yPos + 5);
+            yPos += 15;
         }
 
-        // Payment History Table
+        yPos += 10;
+
+        // Payment History
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Payment History', 14, yPos);
-        yPos += 5;
+        yPos += 8;
 
         const paymentData = (member.payments || []).slice().reverse().map(payment => [
             new Date(payment.date).toLocaleDateString(),
-            payment.type?.replace('_', ' ').toUpperCase() || 'PAYMENT',
+            (payment.type || 'payment').replace('_', ' ').toUpperCase(),
             `${payment.amount || 0} MAD`,
             payment.note || '-'
         ]);
 
         if (paymentData.length > 0) {
-            doc.autoTable({
-                startY: yPos,
-                head: [['Date', 'Type', 'Amount', 'Note']],
-                body: paymentData,
-                theme: 'striped',
-                headStyles: { fillColor: [31, 41, 55] },
-                margin: { left: 14, right: 14 },
-            });
+            yPos = drawTable(doc, ['Date', 'Type', 'Amount', 'Note'], paymentData, yPos);
         } else {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'italic');
-            doc.text('No payment history available.', 14, yPos + 10);
+            doc.text('No payment history available.', 14, yPos + 5);
         }
 
         // Footer
@@ -175,18 +208,17 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
             doc.setFontSize(8);
             doc.setTextColor(128, 128, 128);
             doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-            doc.text(`${gymName || 'PowerGYM'} - Confidential Member File`, 14, doc.internal.pageSize.getHeight() - 10);
+            doc.text(`${gymName || 'PowerGYM'} - Confidential`, 14, doc.internal.pageSize.getHeight() - 10);
         }
 
-        // Save - using explicit output
-        const fileName = `${member.firstName || 'Member'}_${member.lastName || ''}_FicheTechnique_${new Date().toISOString().split('T')[0]}.pdf`;
+        // Save
+        const fileName = `${member.firstName || 'Member'}_${member.lastName || ''}_FicheTechnique.pdf`;
         doc.save(fileName);
 
-        console.log('PDF generated successfully:', fileName);
         return true;
     } catch (error) {
         console.error('Error generating PDF:', error);
-        alert('Failed to generate PDF. Please try again.');
+        alert('Failed to generate PDF: ' + error.message);
         return false;
     }
 }
@@ -195,91 +227,99 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
  * Generate a single Subscription PDF
  */
 export function generateSubscriptionPDF(member, subscription, gymName = 'PowerGYM') {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    try {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
-    doc.setFillColor(31, 41, 55);
-    doc.rect(0, 0, pageWidth, 35, 'F');
+        // Header
+        doc.setFillColor(31, 41, 55);
+        doc.rect(0, 0, pageWidth, 35, 'F');
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text(gymName, 14, 18);
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Subscription Receipt', 14, 28);
-
-    doc.setFontSize(9);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - 14, 28, { align: 'right' });
-
-    doc.setTextColor(0, 0, 0);
-
-    let yPos = 50;
-
-    // Member Info
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Member:', 14, yPos);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${member.firstName || ''} ${member.lastName || ''}`, 45, yPos);
-
-    yPos += 8;
-    doc.setFont('helvetica', 'bold');
-    doc.text('ID:', 14, yPos);
-    doc.setFont('helvetica', 'normal');
-    doc.text(member.id || 'N/A', 45, yPos);
-
-    yPos += 15;
-
-    // Subscription Details Box
-    doc.setFillColor(243, 244, 246);
-    doc.rect(14, yPos, pageWidth - 28, 50, 'F');
-
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Subscription Details', 20, yPos + 12);
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-
-    const details = [
-        ['Plan:', subscription.planName || 'N/A'],
-        ['Start Date:', new Date(subscription.startDate).toLocaleDateString()],
-        ['End Date:', new Date(subscription.endDate).toLocaleDateString()],
-        ['Price:', `${subscription.price || 0} MAD`],
-    ];
-
-    let detailY = yPos + 22;
-    details.forEach(([label, value]) => {
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
-        doc.text(label, 20, detailY);
+        doc.text(gymName || 'PowerGYM', 14, 18);
+
+        doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text(String(value), 55, detailY);
-        detailY += 8;
-    });
+        doc.text('Subscription Receipt', 14, 28);
 
-    yPos += 60;
+        doc.setFontSize(9);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - 14, 28, { align: 'right' });
 
-    // Status
-    const isActive = new Date(subscription.endDate) > new Date();
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    if (isActive) {
-        doc.setTextColor(22, 163, 74);
-        doc.text('STATUS: ACTIVE', 14, yPos);
-    } else {
-        doc.setTextColor(220, 38, 38);
-        doc.text('STATUS: EXPIRED', 14, yPos);
+        doc.setTextColor(0, 0, 0);
+
+        let yPos = 50;
+
+        // Member Info
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Member:', 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${member.firstName || ''} ${member.lastName || ''}`, 45, yPos);
+
+        yPos += 8;
+        doc.setFont('helvetica', 'bold');
+        doc.text('ID:', 14, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(member.memberId || member.id || 'N/A'), 45, yPos);
+
+        yPos += 15;
+
+        // Subscription Details Box
+        doc.setFillColor(243, 244, 246);
+        doc.rect(14, yPos, pageWidth - 28, 50, 'F');
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Subscription Details', 20, yPos + 12);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+
+        const details = [
+            ['Plan:', subscription.planName || 'N/A'],
+            ['Start Date:', new Date(subscription.startDate).toLocaleDateString()],
+            ['End Date:', new Date(subscription.endDate).toLocaleDateString()],
+            ['Price:', `${subscription.price || 0} MAD`],
+        ];
+
+        let detailY = yPos + 22;
+        details.forEach(([label, value]) => {
+            doc.setFont('helvetica', 'bold');
+            doc.text(label, 20, detailY);
+            doc.setFont('helvetica', 'normal');
+            doc.text(String(value), 55, detailY);
+            detailY += 8;
+        });
+
+        yPos += 60;
+
+        // Status
+        const isActive = new Date(subscription.endDate) > new Date();
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        if (isActive) {
+            doc.setTextColor(22, 163, 74);
+            doc.text('STATUS: ACTIVE', 14, yPos);
+        } else {
+            doc.setTextColor(220, 38, 38);
+            doc.text('STATUS: EXPIRED', 14, yPos);
+        }
+
+        // Footer
+        doc.setTextColor(128, 128, 128);
+        doc.setFontSize(8);
+        doc.text(`${gymName || 'PowerGYM'} - Subscription Document`, 14, doc.internal.pageSize.getHeight() - 10);
+
+        // Save
+        const fileName = `${member.firstName || 'Member'}_${member.lastName || ''}_Subscription.pdf`;
+        doc.save(fileName);
+
+        return true;
+    } catch (error) {
+        console.error('Error generating PDF:', error);
+        alert('Failed to generate PDF: ' + error.message);
+        return false;
     }
-
-    // Footer
-    doc.setTextColor(128, 128, 128);
-    doc.setFontSize(8);
-    doc.text(`${gymName} - Subscription Document`, 14, doc.internal.pageSize.getHeight() - 10);
-
-    // Save
-    const fileName = `${member.firstName}_${member.lastName}_Subscription_${new Date(subscription.startDate).toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
 }

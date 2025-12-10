@@ -4,7 +4,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 const AuthContext = createContext({});
@@ -16,48 +16,49 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            try {
-                if (firebaseUser) {
-                    setUser(firebaseUser);
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+            if (firebaseUser) {
+                setUser(firebaseUser);
 
-                    // Fetch user profile from Firestore
-                    try {
-                        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-                        if (userDoc.exists()) {
-                            const profile = userDoc.data();
-                            setUserProfile(profile);
+                // Real-time listener for User Profile
+                const userRef = doc(db, 'users', firebaseUser.uid);
+                const unsubscribeProfile = onSnapshot(userRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        const profile = docSnap.data();
+                        setUserProfile(profile);
 
-                            // For gym clients, check if there's an existing session
-                            if (profile.role === 'gymclient') {
-                                const sessionDoc = await getDoc(doc(db, 'sessions', firebaseUser.uid));
-                                if (sessionDoc.exists()) {
-                                    const sessionData = sessionDoc.data();
-                                    setSessionState(sessionData);
-                                } else {
-                                    // No session exists - user needs to select role
-                                    setSessionState(null);
-                                }
+                        // If user is gymclient/owner, check session
+                        // Note: For now, we still fetch session once. 
+                        // If we needed session to be matching profile changes strictly, we might move this.
+                        // But gymName is usually in profile.
+                        if (profile.role === 'gymclient') {
+                            const sessionDoc = await getDoc(doc(db, 'sessions', firebaseUser.uid));
+                            if (sessionDoc.exists()) {
+                                setSessionState(sessionDoc.data());
+                            } else {
+                                setSessionState(null);
                             }
-                        } else {
-                            console.warn('User document does not exist in Firestore for UID:', firebaseUser.uid);
                         }
-                    } catch (error) {
-                        console.error('Error fetching user profile:', error);
+                    } else {
+                        console.warn('User document does not exist');
                     }
-                } else {
-                    setUser(null);
-                    setUserProfile(null);
-                    setSessionState(null);
-                }
-            } catch (error) {
-                console.error('Auth state change error:', error);
-            } finally {
+                    setLoading(false);
+                }, (error) => {
+                    console.error("Profile listener error:", error);
+                    setLoading(false);
+                });
+
+                return () => unsubscribeProfile();
+
+            } else {
+                setUser(null);
+                setUserProfile(null);
+                setSessionState(null);
                 setLoading(false);
             }
         });
 
-        return unsubscribe;
+        return () => unsubscribe();
     }, []);
 
     const signIn = async (email, password) => {

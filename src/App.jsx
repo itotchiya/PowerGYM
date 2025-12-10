@@ -18,6 +18,7 @@ import { WarningsPage } from '@/pages/WarningsPage';
 import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { NotificationsPage } from '@/pages/NotificationsPage';
 
 function App() {
   const { user, userProfile, session, loading } = useAuth();
@@ -152,6 +153,15 @@ function App() {
           element={
             <ProtectedRoute requireOwner>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

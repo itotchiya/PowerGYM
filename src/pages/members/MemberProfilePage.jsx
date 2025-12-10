@@ -51,6 +51,7 @@ import {
     Download
 } from 'lucide-react';
 import { generateMemberFichePDF, generateSubscriptionPDF } from '@/utils/generatePDF';
+import { ImageCropper } from '@/components/ui/image-cropper';
 
 export function MemberProfilePage() {
     const { memberId } = useParams();
@@ -63,6 +64,8 @@ export function MemberProfilePage() {
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
     const [showEditCNIDialog, setShowEditCNIDialog] = useState(false);
+    const [showCropDialog, setShowCropDialog] = useState(false);
+    const [rawImageSrc, setRawImageSrc] = useState(null);
     const [uploadFile, setUploadFile] = useState(null);
     const [uploading, setUploading] = useState(false);
 
@@ -732,7 +735,22 @@ export function MemberProfilePage() {
                                 className="hidden"
                                 id="gallery-upload"
                                 onChange={(e) => {
-                                    if (e.target.files?.[0]) setUploadFile(e.target.files[0]);
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        if (file.type.startsWith('image/')) {
+                                            // Open cropper for images
+                                            const reader = new FileReader();
+                                            reader.onload = () => {
+                                                setRawImageSrc(reader.result);
+                                                setShowCropDialog(true);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        } else {
+                                            // Direct upload for PDFs
+                                            setUploadFile(file);
+                                        }
+                                    }
+                                    e.target.value = ''; // Reset input
                                 }}
                             />
                             <input
@@ -742,7 +760,17 @@ export function MemberProfilePage() {
                                 className="hidden"
                                 id="camera-upload"
                                 onChange={(e) => {
-                                    if (e.target.files?.[0]) setUploadFile(e.target.files[0]);
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        // Always open cropper for camera-captured images
+                                        const reader = new FileReader();
+                                        reader.onload = () => {
+                                            setRawImageSrc(reader.result);
+                                            setShowCropDialog(true);
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                    e.target.value = ''; // Reset input
                                 }}
                             />
 
@@ -816,6 +844,22 @@ export function MemberProfilePage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Image Cropper Dialog */}
+            <ImageCropper
+                open={showCropDialog}
+                onClose={() => {
+                    setShowCropDialog(false);
+                    setRawImageSrc(null);
+                }}
+                imageSrc={rawImageSrc}
+                onCropComplete={(croppedFile) => {
+                    setUploadFile(croppedFile);
+                    setShowCropDialog(false);
+                    setRawImageSrc(null);
+                }}
+                aspectRatio={1.59} // ID Card aspect ratio
+            />
 
         </DashboardLayout>
     );

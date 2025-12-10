@@ -1,14 +1,18 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-const STATUS_COLORS = {
-    active: '#10b981', // Green
-    expiring: '#f59e0b', // Amber
-    expired: '#ef4444'  // Red
-};
+import { useTheme } from '@/contexts/ThemeContext';
 
 export function MemberStatusChart({ members }) {
+    const { theme } = useTheme();
+
+    // Theme-aware colors
+    const STATUS_COLORS = {
+        active: theme === 'dark' ? '#22C55E' : '#16A34A',      // green-500/600
+        expiring: theme === 'dark' ? '#F59E0B' : '#D97706',    // amber-500/600
+        expired: theme === 'dark' ? '#EF4444' : '#DC2626'       // red-500/600
+    };
+
     const data = React.useMemo(() => {
         let active = 0;
         let expiring = 0;
@@ -18,10 +22,6 @@ export function MemberStatusChart({ members }) {
 
         members.forEach(member => {
             if (!member.currentSubscription?.endDate) {
-                // Assuming no end date means inactive or invalid for this chart, 
-                // or maybe we should check a status field if it exists. 
-                // For now, let's rely on the getMemberStatus logic we used elsewhere if possible, 
-                // or reimplement simple logic here.
                 return;
             }
 
@@ -42,7 +42,7 @@ export function MemberStatusChart({ members }) {
             { name: 'Expiring Soon', value: expiring, fill: STATUS_COLORS.expiring },
             { name: 'Expired', value: expired, fill: STATUS_COLORS.expired },
         ];
-    }, [members]);
+    }, [members, theme]);
 
     return (
         <Card className="col-span-1">
@@ -53,12 +53,19 @@ export function MemberStatusChart({ members }) {
                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip cursor={{ fill: 'transparent' }} />
+                            <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#E5E7EB'} />
+                            <XAxis dataKey="name" tick={{ fill: theme === 'dark' ? '#9CA3AF' : '#4B5563' }} />
+                            <YAxis tick={{ fill: theme === 'dark' ? '#9CA3AF' : '#4B5563' }} />
+                            <Tooltip
+                                cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}
+                                contentStyle={{
+                                    backgroundColor: theme === 'dark' ? '#1F2937' : '#FFFFFF',
+                                    border: `1px solid ${theme === 'dark' ? '#374151' : '#E5E7EB'}`,
+                                    borderRadius: '8px'
+                                }}
+                            />
                             <Legend />
-                            <Bar dataKey="value" name="Members">
+                            <Bar dataKey="value" name="Members" radius={[4, 4, 0, 0]}>
                                 {
                                     data.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.fill} />
