@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,17 +53,22 @@ import {
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Search, Download, MoreVertical, AlertTriangle, Edit, RefreshCw, DollarSign, Trash2, Plus, Phone, Shield, ShieldAlert, Check, ArrowUpDown } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 export function MembersPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { userProfile, isOwner, isManager } = useAuth();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
     const [planFilter, setPlanFilter] = useState('all');
-    const [sortOption, setSortOption] = useState('newest');
+    const [paymentFilter, setPaymentFilter] = useState(searchParams.get('payment') === 'outstanding' ? 'outstanding' : 'all');
+    const [insuranceFilter, setInsuranceFilter] = useState(searchParams.get('insurance') === 'unpaid' ? 'unpaid' : 'all');
+    const [sortOption, setSortOption] = useState(searchParams.get('payment') === 'outstanding' ? 'highest_outstanding' : 'newest');
 
     // Dialogs
     const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
@@ -166,7 +171,28 @@ export function MembersPage() {
 
         const matchesPlan = planFilter === 'all' || member.currentSubscription?.planId === planFilter;
 
-        return matchesSearch && matchesStatus && matchesPlan;
+        // URL Params Filters
+        const paymentParam = searchParams.get('payment');
+        const insuranceParam = searchParams.get('insurance');
+        const statusParam = searchParams.get('status');
+
+        let matchesUrlFilters = true;
+
+        if (paymentParam === 'outstanding') {
+            if ((member.outstandingBalance || 0) <= 0) matchesUrlFilters = false;
+        }
+
+        if (insuranceParam === 'unpaid') {
+            if (member.insuranceStatus === 'active') matchesUrlFilters = false;
+        }
+
+        // If status param is present, it overrides the dropdown or syncs with it
+        // The dropdown (statusFilter) catches the initial Sync in useEffect, but let's double check logic
+        // Actually, we should rely on statusFilter being set by useEffect on mount, 
+        // OR we can check directly here if we want instant URL reaction without state sync lag.
+        // For simplicity, let's assume useEffect handles the 'status' param -> setStatusFilter mapping.
+
+        return matchesSearch && matchesStatus && matchesPlan && matchesUrlFilters;
     }).sort((a, b) => {
         if (sortOption === 'newest') {
             // Newest first (highest memberId or createdAt)
@@ -181,33 +207,94 @@ export function MembersPage() {
         return 0;
     });
 
-    const handleExportCSV = () => {
-        const headers = ['ID', 'First Name', 'Last Name', 'CNI', 'Email', 'Phone', 'Plan', 'Status', 'End Date', 'Outstanding Balance'];
-        const rows = filteredMembers.map(member => {
+    const handleExportExcel = async () => {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Members');
+
+        // Define Headers
+        worksheet.columns = [
+            { header: 'ID', key: 'id', width: 10 },
+            { header: 'First Name', key: 'firstName', width: 20 },
+            { header: 'Last Name', key: 'lastName', width: 20 },
+            { header: 'Plan', key: 'plan', width: 15 },
+            { header: 'Payment Status', key: 'paymentStatus', width: 20 },
+            { header: 'Insurance Status', key: 'insuranceStatus', width: 20 },
+            { header: 'Price Paid (MAD)', key: 'pricePaid', width: 15 },
+            { header: 'Outstanding (MAD)', key: 'outstanding', width: 18 },
+            { header: 'End Date', key: 'endDate', width: 15 },
+        ];
+
+        // Format Headers
+        worksheet.getRow(1).font = { bold: true };
+
+        filteredMembers.forEach(member => {
             const plan = plans.find(p => p.id === member.currentSubscription?.planId);
-            return [
-                member.memberId || 'N/A',
-                member.firstName,
-                member.lastName,
-                member.cniId || 'N/A',
-                member.email || 'N/A',
-                member.phone,
-                plan?.name || 'N/A',
-                getMemberStatus(member),
-                member.currentSubscription?.endDate || 'N/A',
-                member.outstandingBalance || 0
-            ];
+            const isInsurancePaid = member.insuranceStatus === 'active';
+            const outstanding = member.outstandingBalance || 0;
+            const paymentStatus = outstanding > 0 ? 'Outstanding' : 'Fully Paid';
+            const insuranceStatus = isInsurancePaid ? 'Paid' : 'Unpaid';
+            const pricePaid = member.totalPaid || 0;
+
+            const row = worksheet.addRow({
+                id: member.memberId || 'N/A',
+                firstName: member.firstName,
+                lastName: member.lastName,
+                plan: plan?.name || 'N/A',
+                paymentStatus: paymentStatus,
+                insuranceStatus: insuranceStatus,
+                pricePaid: pricePaid,
+                outstanding: outstanding,
+                endDate: member.currentSubscription?.endDate ? new Date(member.currentSubscription.endDate).toLocaleDateString() : 'N/A'
+            });
+
+            // Styling Logic
+            // Payment Status Coloring
+            const paymentCell = row.getCell('paymentStatus');
+            if (paymentStatus === 'Outstanding') {
+                paymentCell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFFE0B2' } // Light Orange
+                };
+                paymentCell.font = { color: { argb: 'FFF57C00' }, bold: true }; // Dark Orange Text
+            } else {
+                paymentCell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFC8E6C9' } // Light Green
+                };
+                paymentCell.font = { color: { argb: 'FF2E7D32' }, bold: true }; // Dark Green Text
+            }
+
+            // Insurance Status Coloring
+            const insuranceCell = row.getCell('insuranceStatus');
+            if (insuranceStatus === 'Unpaid') {
+                insuranceCell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFFFCDD2' } // Light Red
+                };
+                insuranceCell.font = { color: { argb: 'FFC62828' }, bold: true }; // Dark Red Text
+            } else {
+                insuranceCell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFC8E6C9' } // Light Green
+                };
+                insuranceCell.font = { color: { argb: 'FF2E7D32' }, bold: true };
+            }
+
+            // Value Conditional Formatting for Outstanding Amount
+            if (outstanding > 0) {
+                const amountCell = row.getCell('outstanding');
+                amountCell.font = { color: { argb: 'FFFF0000' }, bold: true };
+            }
         });
 
-        const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `members_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('CSV exported successfully');
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `members_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success('Excel exported successfully');
     };
 
     // Add Member
@@ -468,16 +555,17 @@ export function MembersPage() {
                 {/* Filters */}
                 <Card>
                     <CardContent className="p-4">
-                        <div className="grid gap-4 md:grid-cols-4">
-                            <div className="relative">
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+                            <div className="relative col-span-2 lg:col-span-2">
                                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search by Name, Phone, ID, CNI..."
+                                    placeholder="Search by Name, Phone, ID..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-10"
                                 />
                             </div>
+
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Status" />
@@ -489,21 +577,58 @@ export function MembersPage() {
                                     <SelectItem value="expired">Expired</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Select value={sortOption} onValueChange={setSortOption}>
+
+                            <Select value={planFilter} onValueChange={setPlanFilter}>
                                 <SelectTrigger>
-                                    <ArrowUpDown className="mr-2 h-4 w-4" />
-                                    <SelectValue placeholder="Sort By" />
+                                    <SelectValue placeholder="Plan" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="newest">Newest First</SelectItem>
-                                    <SelectItem value="oldest">Oldest First</SelectItem>
-                                    <SelectItem value="highest_outstanding">Highest Debt</SelectItem>
+                                    <SelectItem value="all">All Plans</SelectItem>
+                                    {plans.map(plan => (
+                                        <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
-                            <Button onClick={handleExportCSV} variant="outline">
-                                <Download className="mr-2 h-4 w-4" />
-                                Export CSV
-                            </Button>
+
+                            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Payment" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Any Payment</SelectItem>
+                                    <SelectItem value="paid">Fully Paid</SelectItem>
+                                    <SelectItem value="outstanding">Outstanding</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            <Select value={insuranceFilter} onValueChange={setInsuranceFilter}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Insurance" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Any Insurance</SelectItem>
+                                    <SelectItem value="paid">Paid</SelectItem>
+                                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            <div className="flex gap-2 col-span-2 lg:col-span-6 justify-end mt-2">
+                                <Select value={sortOption} onValueChange={setSortOption}>
+                                    <SelectTrigger className="w-[180px]">
+                                        <ArrowUpDown className="mr-2 h-4 w-4" />
+                                        <SelectValue placeholder="Sort By" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="newest">Newest First</SelectItem>
+                                        <SelectItem value="oldest">Oldest First</SelectItem>
+                                        <SelectItem value="highest_outstanding">Highest Debt</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Export Excel
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

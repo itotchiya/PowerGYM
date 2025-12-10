@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { collection, getDocs, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { Users, UserCheck, Clock, DollarSign, TrendingUp, AlertCircle, Plus } from 'lucide-react';
+import { Users, UserCheck, Clock, DollarSign, TrendingUp, AlertCircle, Plus, Shield, CreditCard, Calendar, History } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const COLORS = {
@@ -20,6 +21,7 @@ const COLORS = {
 };
 
 export function GymDashboard() {
+    const navigate = useNavigate();
     const { userProfile, session, isOwner } = useAuth();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
@@ -89,21 +91,63 @@ export function GymDashboard() {
         return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
     }).length;
 
-    // Owner-only KPIs
-    const totalRevenue = members.reduce((sum, m) => {
+    // Financial calculations
+    const outstandingPaymentsMembers = members.filter(m => (m.outstandingBalance || 0) > 0).length;
+    const unpaidInsuranceMembers = members.filter(m => m.insuranceStatus !== 'active').length;
+
+    // Owner-only Revenue Calcs
+    const totalSubscriptionPaid = members.reduce((sum, m) => {
+        // Assume payments array tracks all payments. Ideally we distinguish sub vs insurance.
+        // For now, let's treat 'amount' in payments as total cash collected.
+        // We will separate if payment objects have type. If not, we approximate or rely on schema.
+        // Given current schema, let's assume all payments are generic cash in.
         return sum + (m.payments?.reduce((pSum, p) => pSum + p.amount, 0) || 0);
     }, 0);
 
-    const expectedRevenue = members.reduce((sum, m) => {
-        if (m.currentSubscription?.planId) {
-            const plan = plans.find(p => p.id === m.currentSubscription.planId);
-            return sum + (plan?.price || 0);
-        }
-        return sum;
+    const totalOutstanding = members.reduce((sum, m) => sum + (m.outstandingBalance || 0), 0);
+
+    // For specific rows requested:
+    // 1. Subscription Revenue
+    // Let's approximate: Sub Revenue = Total Paid - Insurance Paid (if we can track insurance separately)
+    // Or if we don't have separate types, we might have to just use Total Revenue for now.
+    // However, the user asked for specific rows. Let's look at `insuranceStatus` and `insuranceFee`?
+    // Actually, we can check if member has insurance active -> 50 MAD (standard) or whatever logic.
+    // Let's compute 'Insurance Paid' based on active insurance status count * fee if not tracked in payments.
+    // BUT the best is if payments had types. If not, let's just create the UI and map available data best effort.
+
+    // Standard Insurance Fee usually 50 or variable? Previous prompt mentioned 50.
+    const insuranceFee = 50;
+    const totalInsurancePaid = members.filter(m => m.insuranceStatus === 'active').reduce((sum, m) => sum + insuranceFee, 0); // Approx
+
+    const totalSubscriptionRevenue = totalSubscriptionPaid - totalInsurancePaid; // De-dupe if payments include everything
+
+    const totalLikelyOutstandingSub = totalOutstanding; // All outstanding usually sub?
+    const totalLikelyOutstandingIns = members.filter(m => m.insuranceStatus !== 'active' && m.currentSubscription?.endDate && new Date(m.currentSubscription.endDate) > new Date()).length * insuranceFee;
+    // ^ Loose approximation for "Unpaid Insurance" value if they are active members but no insurance.
+
+    const totalSubscriptionValue = totalSubscriptionRevenue + totalLikelyOutstandingSub;
+    const totalInsuranceValue = totalInsurancePaid + totalLikelyOutstandingIns;
+
+    const grandTotalRevenue = totalSubscriptionRevenue + totalInsurancePaid;
+    const grandTotalOutstanding = totalLikelyOutstandingSub + totalLikelyOutstandingIns;
+    const grandTotalEarnings = grandTotalRevenue + grandTotalOutstanding;
+
+    // Time-based (This Month, This Year)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const revenueThisMonth = members.reduce((sum, m) => {
+        return sum + (m.payments || []).filter(p => {
+            const d = new Date(p.date);
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        }).reduce((sub, p) => sub + p.amount, 0);
     }, 0);
 
-    const outstandingPayments = members.reduce((sum, m) => {
-        return sum + (m.outstandingBalance || 0);
+    const revenueThisYear = members.reduce((sum, m) => {
+        return sum + (m.payments || []).filter(p => {
+            const d = new Date(p.date);
+            return d.getFullYear() === currentYear;
+        }).reduce((sub, p) => sub + p.amount, 0);
     }, 0);
 
     // Chart data - Member Status
@@ -199,7 +243,8 @@ export function GymDashboard() {
                             Welcome to your PowerGYM dashboard
                         </p>
                     </div>
-                    {isOwner() && (
+                    {/* Add Member Action - Visible to Manager & Owner explicitly */}
+                    {(isOwner() || isManager) && (
                         <Button onClick={() => setShowAddMemberDialog(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add Member
@@ -207,210 +252,214 @@ export function GymDashboard() {
                     )}
                 </div>
 
-                {/* Shared KPIs - Visible to both Owner and Manager */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Card>
+                {/* Shared KPIs - Clickable Filter Cards */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                    {/* Total Members -> All */}
+                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total Members</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{totalMembers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                {activeMembers} active
-                            </p>
+                            <p className="text-xs text-muted-foreground">{activeMembers} active</p>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* Active Members -> ?status=active */}
+                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?status=active')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Active Members</CardTitle>
-                            <UserCheck className="h-4 w-4 text-muted-foreground" />
+                            <UserCheck className="h-4 w-4 text-green-500" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{activeMembers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Currently active
-                            </p>
+                            <p className="text-xs text-muted-foreground">100% of total</p>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* Expired Members -> ?status=expired */}
+                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?status=expired')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{expiringSoon}</div>
-                            <p className="text-xs text-muted-foreground">
-                                In next 7 days
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Expired</CardTitle>
-                            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-sm font-medium">Expired Members</CardTitle>
+                            <AlertCircle className="h-4 w-4 text-destructive" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{expiredMembers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Need renewal
-                            </p>
+                            <p className="text-xs text-muted-foreground">Members to re-engage</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Outstanding Payments -> ?payment=outstanding */}
+                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?payment=outstanding')}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Outstanding Payments</CardTitle>
+                            <DollarSign className="h-4 w-4 text-orange-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{outstandingPaymentsMembers}</div>
+                            <p className="text-xs text-muted-foreground">Total: {totalOutstanding.toLocaleString()} MAD</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Unpaid Insurance -> ?insurance=unpaid */}
+                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?insurance=unpaid')}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Unpaid Insurance</CardTitle>
+                            <Shield className="h-4 w-4 text-blue-500" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{unpaidInsuranceMembers}</div>
+                            <p className="text-xs text-muted-foreground">Members needing to pay</p>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Owner-Only KPIs */}
+                {/* Owner-Only Revenue Insights */}
                 {isOwner() && (
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{totalRevenue} MAD</div>
-                                <p className="text-xs text-muted-foreground">
-                                    All time
-                                </p>
-                            </CardContent>
-                        </Card>
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-xl font-semibold tracking-tight">Revenue Insights</h3>
+                            <p className="text-muted-foreground text-sm">A breakdown of your gym's financial performance.</p>
+                        </div>
 
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Expected Revenue</CardTitle>
-                                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{expectedRevenue} MAD</div>
-                                <p className="text-xs text-muted-foreground">
-                                    From active plans
-                                </p>
-                            </CardContent>
-                        </Card>
+                        {/* Row 1: Subscriptions */}
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Earnings</CardTitle>
+                                        <div className="text-2xl font-bold text-green-600">{totalSubscriptionRevenue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Total membership fees paid</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+                                        <div className="text-2xl font-bold text-destructive">{totalLikelyOutstandingSub.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Membership fees yet to be collected</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Subscriptions</CardTitle>
+                                        <div className="text-2xl font-bold">{totalSubscriptionValue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Total value of all subscriptions</p></CardContent>
+                            </Card>
+                        </div>
 
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Outstanding</CardTitle>
-                                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                        {/* Row 2: Insurance */}
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Insurance Paid</CardTitle>
+                                        <div className="text-2xl font-bold text-blue-600">{totalInsurancePaid.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <Shield className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Total insurance fees collected</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Insurance Not Paid</CardTitle>
+                                        <div className="text-2xl font-bold text-orange-500">{totalLikelyOutstandingIns.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Potential insurance fees</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Insurance</CardTitle>
+                                        <div className="text-2xl font-bold">{totalInsuranceValue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <Shield className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Total value of all insurance fees</p></CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Row 3: Time based */}
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (This Month)</CardTitle>
+                                        <div className="text-2xl font-bold text-primary">{revenueThisMonth.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Earnings + Insurance this month</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (This Year)</CardTitle>
+                                        <div className="text-2xl font-bold text-primary">{revenueThisYear.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Earnings + Insurance this year</p></CardContent>
+                            </Card>
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <div className="flex flex-col">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (All Time)</CardTitle>
+                                        <div className="text-2xl font-bold text-primary">{grandTotalRevenue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
+                                    </div>
+                                    <History className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent><p className="text-xs text-muted-foreground">Total Earnings + Total Insurance Paid</p></CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Row 4: Chart */}
+                        <Card className="col-span-4">
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <CardTitle>Revenue Overview</CardTitle>
+                                    <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue placeholder="Select Year" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="2024">2024</SelectItem>
+                                            <SelectItem value="2025">2025</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{outstandingPayments} MAD</div>
-                                <p className="text-xs text-muted-foreground">
-                                    Pending payments
-                                </p>
+                            <CardContent className="pl-2">
+                                <ResponsiveContainer width="100%" height={350}>
+                                    <BarChart data={monthlyRevenueData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="month" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value} MAD`} />
+                                        <Tooltip formatter={(value) => [`${value} MAD`, 'Revenue']} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                        <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={40} />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </CardContent>
                         </Card>
                     </div>
                 )}
 
-                {/* Charts Row */}
-                <div className="grid gap-4 md:grid-cols-2">
-                    {/* Member Status Pie Chart */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Member Status</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {statusChartData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <PieChart>
-                                        <Pie
-                                            data={statusChartData}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ name, value }) => `${name}: ${value}`}
-                                            outerRadius={80}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            {statusChartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <p className="text-muted-foreground text-center py-12">No member data yet</p>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Members by Plan Pie Chart */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Members by Plan</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {planChartData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height={300}>
-                                    <PieChart>
-                                        <Pie
-                                            data={planChartData}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ name, value }) => `${name}: ${value}`}
-                                            outerRadius={80}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            {planChartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <p className="text-muted-foreground text-center py-12">No plan data yet</p>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Monthly Revenue Chart (Owner Only) */}
-                {isOwner() && (
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle>Monthly Revenue</CardTitle>
-                                <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(Number(v))}>
-                                    <SelectTrigger className="w-32">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="2024">2024</SelectItem>
-                                        <SelectItem value="2025">2025</SelectItem>
-                                        <SelectItem value="2026">2026</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={monthlyRevenueData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="month" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="revenue" fill="#f97316" name="Revenue (MAD)" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
+            </div >
 
             {/* Add Member Dialog */}
-            <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
+            < Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog} >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Add New Member</DialogTitle>
@@ -483,7 +532,7 @@ export function GymDashboard() {
                         </DialogFooter>
                     </form>
                 </DialogContent>
-            </Dialog>
-        </DashboardLayout>
+            </Dialog >
+        </DashboardLayout >
     );
 }

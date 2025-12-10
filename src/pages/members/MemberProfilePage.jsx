@@ -25,9 +25,10 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc, updateDoc, collection, query, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { toast } from 'sonner';
+import imageCompression from 'browser-image-compression';
 import {
     ArrowLeft,
     User,
@@ -123,9 +124,46 @@ export function MemberProfilePage() {
 
         try {
             setUploading(true);
-            const storageRef = ref(storage, `gyms/${userProfile.gymId}/members/${memberId}/cni_${Date.now()}`);
-            await uploadBytes(storageRef, uploadFile);
+            console.log("Starting upload...", uploadFile.name, uploadFile.size);
+
+            if (!userProfile?.gymId) throw new Error("Missing gym ID");
+
+            // Filename Logic: MEMBERID-FIRSTNAME-LASTNAME-CNI
+            const fileExtension = uploadFile.name.split('.').pop();
+            const safeFirstName = (member.firstName || 'Unknown').replace(/[^a-z0-9]/gi, '');
+            const safeLastName = (member.lastName || 'Unknown').replace(/[^a-z0-9]/gi, '');
+            const safeCNI = (member.cniId || 'empty').replace(/[^a-z0-9]/gi, '');
+
+            const newFilename = `${safeFirstName}-${safeLastName}-${safeCNI}-${memberId}.${fileExtension}`;
+            const storagePath = `gyms/${userProfile.gymId}/members/${memberId}/${newFilename}`;
+            console.log("Upload path:", storagePath);
+
+            // Compress Image
+            console.log("Original size:", uploadFile.size / 1024 / 1024, "MB");
+            const options = {
+                maxSizeMB: 0.8,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+            };
+
+            let fileToUpload = uploadFile;
+            try {
+                if (uploadFile.type.startsWith('image/')) {
+                    const compressedFile = await imageCompression(uploadFile, options);
+                    console.log("Compressed size:", compressedFile.size / 1024 / 1024, "MB");
+                    fileToUpload = compressedFile;
+                }
+            } catch (error) {
+                console.error("Compression failed, uploading original:", error);
+            }
+
+            const storageRef = ref(storage, storagePath);
+
+            const snapshot = await uploadBytes(storageRef, fileToUpload);
+            console.log("Upload snapshot:", snapshot);
+
             const downloadURL = await getDownloadURL(storageRef);
+            console.log("Download URL:", downloadURL);
 
             const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
             await updateDoc(memberRef, { cniDocumentUrl: downloadURL });
@@ -135,8 +173,44 @@ export function MemberProfilePage() {
             setUploadFile(null);
             fetchMemberData();
         } catch (error) {
-            console.error('Error uploading CNI:', error);
-            toast.error('Failed to upload document');
+            console.error('Error uploading CNI full detail:', error);
+            if (error.code === 'storage/unauthorized') {
+                toast.error('Permission denied: You cannot upload files here.');
+            } else if (error.code === 'storage/canceled') {
+                toast.error('Upload canceled');
+            } else if (error.code === 'storage/unknown') {
+                toast.error('Unknown error occurred, check console.');
+            } else {
+                toast.error(`Upload failed: ${error.message}`);
+            }
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDeleteCNI = async () => {
+        if (!confirm("Are you sure you want to delete this document? This cannot be undone.")) return;
+
+        try {
+            setUploading(true);
+
+            if (member.cniDocumentUrl) {
+                try {
+                    const fileRef = ref(storage, member.cniDocumentUrl);
+                    await deleteObject(fileRef);
+                } catch (err) {
+                    console.warn("Could not delete file from storage (might be external link or already gone)", err);
+                }
+            }
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+            await updateDoc(memberRef, { cniDocumentUrl: null });
+
+            toast.success('Document deleted');
+            fetchMemberData();
+        } catch (error) {
+            console.error("Error deleting CNI:", error);
+            toast.error("Failed to delete document");
         } finally {
             setUploading(false);
         }
@@ -354,38 +428,75 @@ export function MemberProfilePage() {
                             <CreditCard className="h-5 w-5 text-primary" />
                             <CardTitle>Member CNI Document</CardTitle>
                         </div>
-                        {isOwner() && (
+                        {isOwner() && member.cniDocumentUrl ? (
+                            <div className="flex gap-2">
+                                <Button variant="destructive" size="sm" onClick={handleDeleteCNI} disabled={uploading}>
+                                    <X className="h-4 w-4 mr-1" /> Delete
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
+                                    <Upload className="mr-2 h-4 w-4" /> Update
+                                </Button>
+                            </div>
+                        ) : isOwner() && (
                             <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
-                                <Upload className="mr-2 h-4 w-4" /> {member.cniDocumentUrl ? "Update Document" : "Upload Document"}
+                                <Upload className="mr-2 h-4 w-4" /> Upload Document
                             </Button>
                         )}
                     </CardHeader>
                     <CardContent>
                         {member.cniDocumentUrl ? (
-                            <div className="rounded-lg border bg-muted/10 p-4 flex justify-center">
-                                {/* If it's an image, show preview. If PDF, show link/embed */}
-                                <img
-                                    src={member.cniDocumentUrl}
-                                    alt="CNI Document"
-                                    className="max-h-[400px] w-auto object-contain rounded-md shadow-sm"
-                                    onError={(e) => {
-                                        e.target.onerror = null;
-                                        e.target.style.display = 'none'; // Hide if not image
-                                        // Could show fallback for PDF here
-                                    }}
-                                />
-                                {/* Fallback link always good */}
-                                <div className="mt-4 text-center w-full">
-                                    <a href={member.cniDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center justify-center gap-2">
-                                        <FileText className="h-4 w-4" /> View Full Document
-                                    </a>
+                            <div className="space-y-4">
+                                {/* Clean Preview Container */}
+                                <div className="rounded-xl border bg-muted/5 p-2 md:p-6 flex flex-col items-center justify-center">
+                                    <img
+                                        src={member.cniDocumentUrl}
+                                        alt="CNI Document"
+                                        className="max-h-[50vh] w-auto max-w-full object-contain rounded-lg shadow-sm"
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            // Fallback handled by the layout itself if image missing
+                                        }}
+                                    />
+                                    <div className="mt-4 flex flex-col md:flex-row gap-3 w-full max-w-md">
+                                        <Button className="w-full flex-1" variant="secondary" onClick={() => window.open(member.cniDocumentUrl, '_blank')}>
+                                            <FileText className="mr-2 h-4 w-4" /> View Full Document
+                                        </Button>
+
+                                        {isOwner() && (
+                                            <Button className="w-full md:w-auto" variant="outline" onClick={async () => {
+                                                try {
+                                                    const response = await fetch(member.cniDocumentUrl);
+                                                    const blob = await response.blob();
+                                                    const url = window.URL.createObjectURL(blob);
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    // Force the name: MEMBERID-FIRSTNAME-LASTNAME-CNI
+                                                    const safeFirstName = (member.firstName || 'Unknown');
+                                                    const safeLastName = (member.lastName || 'Unknown');
+                                                    const safeCNI = (member.cniId || 'CNI');
+                                                    link.download = `${safeFirstName}-${safeLastName}-${safeCNI}-${member.id}`;
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    document.body.removeChild(link);
+                                                    window.URL.revokeObjectURL(url);
+                                                } catch (err) {
+                                                    console.error("Download failed:", err);
+                                                    // Fallback
+                                                    window.open(member.cniDocumentUrl, '_blank');
+                                                }
+                                            }}>
+                                                <Upload className="mr-2 h-4 w-4 rotate-180" /> Download
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                                <CreditCard className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                <p>No CNI document uploaded.</p>
-                                {isOwner() && <Button variant="link" onClick={() => setShowUploadDialog(true)}>Upload Now</Button>}
+                            <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5">
+                                <CreditCard className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                                <p className="text-lg font-medium">No CNI document uploaded</p>
+                                <p className="text-sm opacity-70 mb-6">Upload a clear photo or scan of the member's ID card.</p>
+                                {isOwner() && <Button onClick={() => setShowUploadDialog(true)}>Upload Now</Button>}
                             </div>
                         )}
                     </CardContent>
@@ -565,23 +676,110 @@ export function MemberProfilePage() {
                 </DialogContent>
             </Dialog>
 
+
             {/* CNI Upload Dialog */}
-            <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-                <DialogContent>
+            <Dialog open={showUploadDialog} onOpenChange={(open) => {
+                setShowUploadDialog(open);
+                if (!open) setUploadFile(null); // Reset on close
+            }}>
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Upload CNI Document</DialogTitle>
+                        <DialogDescription>
+                            Select a method to upload the member's ID card
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <Input type="file" accept="image/*,application/pdf" onChange={(e) => setUploadFile(e.target.files?.[0])} />
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or</span></div>
+
+                    {!uploadFile ? (
+                        <div className="grid grid-cols-2 gap-4 py-4">
+                            {/* Hidden Inputs */}
+                            <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                id="gallery-upload"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) setUploadFile(e.target.files[0]);
+                                }}
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                id="camera-upload"
+                                onChange={(e) => {
+                                    if (e.target.files?.[0]) setUploadFile(e.target.files[0]);
+                                }}
+                            />
+
+                            {/* Cards */}
+                            <div
+                                onClick={() => document.getElementById('gallery-upload').click()}
+                                className="cursor-pointer flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-center h-40"
+                            >
+                                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600 dark:text-blue-400">
+                                    <Upload className="h-6 w-6" />
+                                </div>
+                                <span className="font-medium">Upload from Gallery</span>
+                            </div>
+
+                            <div
+                                onClick={() => document.getElementById('camera-upload').click()}
+                                className="cursor-pointer flex flex-col items-center justify-center gap-3 p-6 border-2 border-dashed rounded-xl hover:border-primary hover:bg-primary/5 transition-all text-center h-40"
+                            >
+                                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-600 dark:text-purple-400">
+                                    <Camera className="h-6 w-6" />
+                                </div>
+                                <span className="font-medium">Take Picture</span>
+                            </div>
                         </div>
-                        <Input type="file" accept="image/*" capture="environment" onChange={handleCameraCapture} />
-                    </div>
+                    ) : (
+                        <div className="space-y-4 py-4">
+                            <div className="relative rounded-lg overflow-hidden border bg-muted/20 flex flex-col items-center justify-center p-4">
+                                {uploadFile.type.startsWith('image/') ? (
+                                    <img
+                                        src={URL.createObjectURL(uploadFile)}
+                                        alt="Preview"
+                                        className="max-h-[250px] object-contain rounded-md"
+                                    />
+                                ) : (
+                                    <div className="flex flex-col items-center py-8 text-muted-foreground">
+                                        <FileText className="h-12 w-12 mb-2" />
+                                        <p>{uploadFile.name}</p>
+                                    </div>
+                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-2 right-2 rounded-full h-8 w-8 p-0 bg-background/80 hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() => setUploadFile(null)}
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="text-center text-sm text-muted-foreground">
+                                Ready to upload <span className="font-semibold text-foreground">{uploadFile.name}</span>
+                            </div>
+                        </div>
+                    )}
+
                     <DialogFooter>
-                        <Button variant="outline" type="button" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
-                        <Button onClick={handleCNIUpload} disabled={!uploadFile || uploading}>{uploading ? 'Uploading...' : 'Upload'}</Button>
+                        <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+                        <Button
+                            onClick={handleCNIUpload}
+                            disabled={!uploadFile || uploading}
+                            className="min-w-[100px]"
+                        >
+                            {uploading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    Uploading...
+                                </>
+                            ) : (
+                                'Confirm Upload'
+                            )}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
