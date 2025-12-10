@@ -47,13 +47,15 @@ import {
     ShieldCheck,
     Wallet,
     Shield,
-    FileText
+    FileText,
+    Download
 } from 'lucide-react';
+import { generateMemberFichePDF, generateSubscriptionPDF } from '@/utils/generatePDF';
 
 export function MemberProfilePage() {
     const { memberId } = useParams();
     const navigate = useNavigate();
-    const { userProfile, isOwner } = useAuth();
+    const { userProfile, isOwner, isManager } = useAuth();
 
     const [member, setMember] = useState(null);
     const [plans, setPlans] = useState([]);
@@ -312,11 +314,21 @@ export function MemberProfilePage() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between">
                     <Button variant="ghost" size="sm" onClick={() => navigate('/members')}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back to Members
                     </Button>
+                    {isOwner() && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateMemberFichePDF(member, userProfile?.gymName)}
+                        >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download Fiche Technique
+                        </Button>
+                    )}
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
@@ -376,9 +388,19 @@ export function MemberProfilePage() {
                                         <p className="text-sm text-muted-foreground">Current Plan</p>
                                         <p className="font-semibold">{currentPlan?.name || 'N/A'}</p>
                                     </div>
-                                    <Badge variant={status === 'active' ? 'default' : status === 'expiring' ? 'secondary' : 'destructive'}>
-                                        {status}
-                                    </Badge>
+                                    {status === 'active' ? (
+                                        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1 text-sm">
+                                            Active Member
+                                        </Badge>
+                                    ) : status === 'expiring' ? (
+                                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 px-3 py-1 text-sm">
+                                            Expiring Soon
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive" className="px-3 py-1 text-sm">
+                                            Expired
+                                        </Badge>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -396,17 +418,15 @@ export function MemberProfilePage() {
                                     </div>
                                     <div>
                                         <p className="text-sm text-muted-foreground">Insurance Status</p>
-                                        <div className="flex items-center gap-1 mt-1">
+                                        <div className="flex items-center gap-2 mt-1">
                                             {member.insuranceStatus === 'active' ? (
-                                                <>
-                                                    <Shield className="h-4 w-4 text-green-500" />
-                                                    <span className="font-medium text-green-600">Paid</span>
-                                                </>
+                                                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
+                                                    <Shield className="h-4 w-4" /> Paid
+                                                </div>
                                             ) : (
-                                                <>
-                                                    <ShieldAlert className="h-4 w-4 text-destructive" />
-                                                    <span className="font-medium text-destructive">Unpaid</span>
-                                                </>
+                                                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm font-medium animate-pulse">
+                                                    <ShieldAlert className="h-4 w-4" /> Unpaid
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -428,7 +448,7 @@ export function MemberProfilePage() {
                             <CreditCard className="h-5 w-5 text-primary" />
                             <CardTitle>Member CNI Document</CardTitle>
                         </div>
-                        {isOwner() && member.cniDocumentUrl ? (
+                        {(isOwner() || isManager()) && member.cniDocumentUrl ? (
                             <div className="flex gap-2">
                                 <Button variant="destructive" size="sm" onClick={handleDeleteCNI} disabled={uploading}>
                                     <X className="h-4 w-4 mr-1" /> Delete
@@ -437,7 +457,7 @@ export function MemberProfilePage() {
                                     <Upload className="mr-2 h-4 w-4" /> Update
                                 </Button>
                             </div>
-                        ) : isOwner() && (
+                        ) : (isOwner() || isManager()) && (
                             <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
                                 <Upload className="mr-2 h-4 w-4" /> Upload Document
                             </Button>
@@ -525,6 +545,7 @@ export function MemberProfilePage() {
                                     <TableHead>End Date</TableHead>
                                     <TableHead>Duration</TableHead>
                                     <TableHead>Price</TableHead>
+                                    {isOwner() && <TableHead className="text-right">Actions</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -537,11 +558,23 @@ export function MemberProfilePage() {
                                             {Math.ceil((new Date(sub.endDate) - new Date(sub.startDate)) / (1000 * 60 * 60 * 24))} days
                                         </TableCell>
                                         <TableCell>{sub.price} MAD</TableCell>
+                                        {isOwner() && (
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => generateSubscriptionPDF(member, sub, userProfile?.gymName)}
+                                                    title="Download Subscription PDF"
+                                                >
+                                                    <Download className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))}
                                 {(!member.subscriptionHistory || member.subscriptionHistory.length === 0) && (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-muted-foreground">No subscription history</TableCell>
+                                        <TableCell colSpan={isOwner() ? 6 : 5} className="text-center text-muted-foreground">No subscription history</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

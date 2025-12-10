@@ -144,9 +144,6 @@ export function RoleSelection() {
                                 Protected Administrative Area
                             </p>
                         </div>
-                        <div className="flex items-center text-sm font-medium text-primary mt-auto pt-4">
-                            Details & Settings <ArrowRight className="ml-2 h-4 w-4" />
-                        </div>
                     </CardContent>
                 </Card>
 
@@ -167,9 +164,6 @@ export function RoleSelection() {
                             <p className="text-muted-foreground">
                                 Daily Operations & Members
                             </p>
-                        </div>
-                        <div className="flex items-center text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors mt-auto pt-4">
-                            Quick Access <ArrowRight className="ml-2 h-4 w-4" />
                         </div>
                     </CardContent>
                 </Card>

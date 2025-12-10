@@ -221,6 +221,7 @@ export function MembersPage() {
             { header: 'Insurance Status', key: 'insuranceStatus', width: 20 },
             { header: 'Price Paid (MAD)', key: 'pricePaid', width: 15 },
             { header: 'Outstanding (MAD)', key: 'outstanding', width: 18 },
+            { header: 'Start Date', key: 'startDate', width: 15 },
             { header: 'End Date', key: 'endDate', width: 15 },
         ];
 
@@ -244,6 +245,7 @@ export function MembersPage() {
                 insuranceStatus: insuranceStatus,
                 pricePaid: pricePaid,
                 outstanding: outstanding,
+                startDate: member.currentSubscription?.startDate ? new Date(member.currentSubscription.startDate).toLocaleDateString() : 'N/A',
                 endDate: member.currentSubscription?.endDate ? new Date(member.currentSubscription.endDate).toLocaleDateString() : 'N/A'
             });
 
@@ -339,6 +341,14 @@ export function MembersPage() {
                 newMemberId = members.length + 1;
             }
 
+            const initialSubscription = {
+                planId: memberForm.planId,
+                planName: selectedPlan.name,
+                price: planPrice,
+                startDate: new Date().toISOString(),
+                endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
+            };
+
             const newMember = {
                 memberId: newMemberId,
                 firstName: memberForm.firstName,
@@ -346,13 +356,8 @@ export function MembersPage() {
                 cniId: memberForm.cniId || '',
                 email: memberForm.email || '',
                 phone: memberForm.phone,
-                currentSubscription: {
-                    planId: memberForm.planId,
-                    planName: selectedPlan.name,
-                    planPrice: planPrice,
-                    startDate: new Date().toISOString(),
-                    endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
-                },
+                currentSubscription: initialSubscription,
+                subscriptionHistory: [initialSubscription],
                 payments: [{
                     amount: amountPaid,
                     type: 'initial_registration',
@@ -624,10 +629,12 @@ export function MembersPage() {
                                         <SelectItem value="highest_outstanding">Highest Debt</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Export Excel
-                                </Button>
+                                {isOwner() && (
+                                    <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
+                                        <Download className="mr-2 h-4 w-4" />
+                                        Export Excel
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </CardContent>
@@ -648,6 +655,7 @@ export function MembersPage() {
                                     <TableHead>Payment</TableHead>
                                     <TableHead className="text-center">Insurance</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Start Date</TableHead>
                                     <TableHead>End Date</TableHead>
                                     <TableHead className="text-center">Warnings</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
@@ -679,41 +687,56 @@ export function MembersPage() {
                                                     </span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-sm">{plan?.name || '-'}</TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col text-xs">
-                                                    {outstanding > 0 ? (
-                                                        <span className="text-destructive font-bold flex items-center">
-                                                            <AlertTriangle className="h-3 w-3 mr-1" />
-                                                            {outstanding} MAD Due
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-green-600 font-medium flex items-center">
-                                                            <Check className="h-3 w-3 mr-1" /> Fully Paid
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                <Badge variant="secondary" className="font-normal border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 hover:bg-slate-200">
+                                                    {plan?.name || 'No Plan'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {outstanding > 0 ? (
+                                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0">
+                                                        {outstanding} MAD Due
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-800 dark:text-emerald-400">
+                                                        Paid
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger>
-                                                            {insurancePaid ? (
-                                                                <Shield className="h-5 w-5 text-green-500 mx-auto" />
-                                                            ) : (
-                                                                <ShieldAlert className="h-5 w-5 text-destructive mx-auto" />
-                                                            )}
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>{insurancePaid ? "Insurance Paid" : "Insurance Not Paid"}</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
+                                                {insurancePaid ? (
+                                                    <div className="flex justify-center" title="Insurance Paid">
+                                                        <div className="p-1.5 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                                            <Shield className="h-4 w-4" />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex justify-center" title="Insurance Unpaid">
+                                                        <div className="p-1.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 animate-pulse">
+                                                            <ShieldAlert className="h-4 w-4" />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={status === 'active' ? 'default' : status === 'expiring' ? 'secondary' : 'destructive'}>
-                                                    {status}
-                                                </Badge>
+                                                {status === 'active' ? (
+                                                    <Badge className="bg-emerald-500 hover:bg-emerald-600 border-0">
+                                                        Active
+                                                    </Badge>
+                                                ) : status === 'expiring' ? (
+                                                    <Badge className="bg-amber-500 hover:bg-amber-600 border-0">
+                                                        Expiring Soon
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="destructive">
+                                                        Expired
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-sm">
+                                                {member.currentSubscription?.startDate
+                                                    ? new Date(member.currentSubscription.startDate).toLocaleDateString()
+                                                    : '-'}
                                             </TableCell>
                                             <TableCell className="text-sm">
                                                 {member.currentSubscription?.endDate

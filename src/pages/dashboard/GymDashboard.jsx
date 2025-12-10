@@ -13,6 +13,8 @@ import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Users, UserCheck, Clock, DollarSign, TrendingUp, AlertCircle, Plus, Shield, CreditCard, Calendar, History } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PlanDistributionChart } from '@/components/dashboard/PlanDistributionChart';
+import { MemberStatusChart } from '@/components/dashboard/MemberStatusChart';
 
 const COLORS = {
     active: '#10b981',
@@ -22,12 +24,13 @@ const COLORS = {
 
 export function GymDashboard() {
     const navigate = useNavigate();
-    const { userProfile, session, isOwner } = useAuth();
+    const { userProfile, session, isOwner, isManager } = useAuth();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [dateFilter, setDateFilter] = useState('all_time');
 
     const [memberForm, setMemberForm] = useState({
         firstName: '',
@@ -35,6 +38,31 @@ export function GymDashboard() {
         email: '',
         phone: '',
         planId: '',
+    });
+
+    // Derived state for charts based on Date Filter
+    const filteredMembersForCharts = members.filter(member => {
+        if (dateFilter === 'all_time') return true;
+
+        const joinedDate = member.createdAt?.toDate ? member.createdAt.toDate() : new Date(member.createdAt);
+        const now = new Date();
+
+        if (dateFilter === 'this_month') {
+            return joinedDate.getMonth() === now.getMonth() && joinedDate.getFullYear() === now.getFullYear();
+        }
+
+        if (dateFilter === 'this_year') {
+            return joinedDate.getFullYear() === now.getFullYear();
+        }
+
+        if (dateFilter === 'year_to_now') {
+            // Assuming this means strictly "From start of year to now" vs "Rolling year"?
+            // Usually "Year to Date" (YTD) is same as "This Year" in context of "current progress".
+            // Let's treat it as YTD.
+            return joinedDate.getFullYear() === now.getFullYear() && joinedDate <= now;
+        }
+
+        return true;
     });
 
     // Fetch members and plans
@@ -191,16 +219,21 @@ export function GymDashboard() {
                 return;
             }
 
+            const initialSubscription = {
+                planId: memberForm.planId,
+                planName: selectedPlan.name,
+                price: selectedPlan.price || 0,
+                startDate: new Date().toISOString(),
+                endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
+            };
+
             const newMember = {
                 firstName: memberForm.firstName,
                 lastName: memberForm.lastName,
                 email: memberForm.email,
                 phone: memberForm.phone,
-                currentSubscription: {
-                    planId: memberForm.planId,
-                    startDate: new Date().toISOString(),
-                    endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
-                },
+                currentSubscription: initialSubscription,
+                subscriptionHistory: [initialSubscription],
                 payments: [],
                 warnings: [],
                 outstandingBalance: 0,
@@ -244,7 +277,7 @@ export function GymDashboard() {
                         </p>
                     </div>
                     {/* Add Member Action - Visible to Manager & Owner explicitly */}
-                    {(isOwner() || isManager) && (
+                    {(isOwner() || isManager()) && (
                         <Button onClick={() => setShowAddMemberDialog(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add Member
