@@ -583,7 +583,7 @@ export function MembersPage() {
                         </p>
                     </div>
                     {isOwner() && (
-                        <Button onClick={() => setShowAddMemberDialog(true)} size="lg">
+                        <Button onClick={() => navigate('/members/add')} size="lg">
                             <Plus className="mr-2 h-4 w-4" />
                             Add New Member
                         </Button>

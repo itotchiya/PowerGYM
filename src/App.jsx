@@ -13,6 +13,7 @@ import { GymRequestsPage } from '@/pages/superadmin/GymRequestsPage';
 // Gym Client Pages
 import { MembersPage } from '@/pages/members/MembersPage';
 import { MemberProfilePage } from '@/pages/members/MemberProfilePage';
+import { AddMemberPage } from '@/pages/members/AddMemberPage';
 import { ExpiringSoonPage } from '@/pages/ExpiringSoonPage';
 import { WarningsPage } from '@/pages/WarningsPage';
 import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
@@ -98,6 +99,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MembersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/members/add"
+          element={
+            <ProtectedRoute requireOwner>
+              <AddMemberPage />
             </ProtectedRoute>
           }
         />

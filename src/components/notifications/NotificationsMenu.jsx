@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, where } from "firebase/firestore";
@@ -23,9 +24,22 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 export function NotificationsMenu() {
+    const navigate = useNavigate();
     const { user, userProfile, session } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect screen size
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 1024); // lg breakpoint
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Dialog States
     const [selectedRequest, setSelectedRequest] = useState(null);
@@ -171,6 +185,24 @@ export function NotificationsMenu() {
 
     if (isManager) return null;
 
+    // On mobile/tablet: navigate to notifications page
+    if (isMobile) {
+        return (
+            <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                onClick={() => navigate('/notifications')}
+            >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-600 ring-2 ring-background" />
+                )}
+            </Button>
+        );
+    }
+
+    // On desktop: show dropdown menu
     return (
         <>
             <DropdownMenu>
