@@ -1,22 +1,19 @@
-import { Sidebar } from './Sidebar';
-import { Header } from './Header';
+import { TopHeader } from './TopHeader';
+import { NavigationTabs } from './NavigationTabs';
 
 export function DashboardLayout({ children }) {
     return (
-        <div className="flex h-screen overflow-hidden">
-            {/* Sidebar */}
-            <Sidebar />
+        <div className="min-h-screen bg-background">
+            {/* Top Header */}
+            <TopHeader />
 
-            {/* Main Content */}
-            <div className="flex flex-1 flex-col overflow-hidden">
-                {/* Header */}
-                <Header />
+            {/* Navigation Tabs */}
+            <NavigationTabs />
 
-                {/* Page Content */}
-                <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-                    {children}
-                </main>
-            </div>
+            {/* Main Content - Full Width */}
+            <main className="p-4 md:p-6 max-w-7xl mx-auto">
+                {children}
+            </main>
         </div>
     );
 }

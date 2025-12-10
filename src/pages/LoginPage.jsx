@@ -4,9 +4,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Dumbbell, Loader2 } from "lucide-react";
+import { Dumbbell, Loader2, Building2 } from "lucide-react";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export function LoginPage() {
     const [email, setEmail] = useState("");
@@ -14,6 +25,18 @@ export function LoginPage() {
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuth();
     const navigate = useNavigate();
+
+    // Registration form state
+    const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+    const [registerLoading, setRegisterLoading] = useState(false);
+    const [registerForm, setRegisterForm] = useState({
+        ownerName: "",
+        email: "",
+        phone: "",
+        gymName: "",
+        gymAddress: "",
+        message: ""
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -23,7 +46,6 @@ export function LoginPage() {
 
         if (result.success) {
             toast.success("Login successful!");
-            // Navigation will be handled by auth state observer
         } else {
             toast.error(result.error || "Invalid email or password");
         }
@@ -31,13 +53,48 @@ export function LoginPage() {
         setLoading(false);
     };
 
+    const handleRegisterSubmit = async (e) => {
+        e.preventDefault();
+
+        if (!registerForm.ownerName || !registerForm.email || !registerForm.phone || !registerForm.gymName) {
+            toast.error("Please fill all required fields");
+            return;
+        }
+
+        setRegisterLoading(true);
+
+        try {
+            await addDoc(collection(db, "gymRequests"), {
+                ...registerForm,
+                status: "pending",
+                createdAt: serverTimestamp(),
+            });
+
+            toast.success("Application submitted! We will contact you soon.");
+            setShowRegisterDialog(false);
+            setRegisterForm({
+                ownerName: "",
+                email: "",
+                phone: "",
+                gymName: "",
+                gymAddress: "",
+                message: ""
+            });
+        } catch (error) {
+            console.error("Error submitting application:", error);
+            toast.error("Failed to submit application. Please try again.");
+        } finally {
+            setRegisterLoading(false);
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="text-center">
                     <div className="flex justify-center mb-4">
-                        <div className="bg-orange-500 p-3 rounded-full">
-                            <Dumbbell className="h-8 w-8 text-white" />
+                        <div className="bg-primary p-3 rounded-full">
+                            <Dumbbell className="h-8 w-8 text-primary-foreground" />
                         </div>
                     </div>
                     <CardTitle className="text-2xl">Welcome to PowerGYM</CardTitle>
@@ -75,6 +132,21 @@ export function LoginPage() {
                         </Button>
                     </form>
 
+                    {/* Gym Owner Registration Link */}
+                    <div className="mt-6 pt-6 border-t text-center">
+                        <p className="text-sm text-muted-foreground mb-2">
+                            Don't have an account?
+                        </p>
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setShowRegisterDialog(true)}
+                        >
+                            <Building2 className="mr-2 h-4 w-4" />
+                            I'm a Gym Owner - Join PowerGYM
+                        </Button>
+                    </div>
+
                     <div className="mt-6 p-4 bg-muted rounded-lg">
                         <p className="text-sm font-semibold mb-2">Demo Credentials:</p>
                         <div className="text-xs space-y-1 text-muted-foreground">
@@ -84,6 +156,100 @@ export function LoginPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Registration Dialog */}
+            <Dialog open={showRegisterDialog} onOpenChange={setShowRegisterDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Building2 className="h-5 w-5" />
+                            Join PowerGYM
+                        </DialogTitle>
+                        <DialogDescription>
+                            Fill out the form below and we'll contact you to set up your gym account.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="ownerName">Your Name *</Label>
+                                <Input
+                                    id="ownerName"
+                                    placeholder="John Doe"
+                                    value={registerForm.ownerName}
+                                    onChange={(e) => setRegisterForm(prev => ({ ...prev, ownerName: e.target.value }))}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="regPhone">Phone Number *</Label>
+                                <Input
+                                    id="regPhone"
+                                    type="tel"
+                                    placeholder="+212 600 000 000"
+                                    value={registerForm.phone}
+                                    onChange={(e) => setRegisterForm(prev => ({ ...prev, phone: e.target.value }))}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="regEmail">Email Address *</Label>
+                            <Input
+                                id="regEmail"
+                                type="email"
+                                placeholder="you@example.com"
+                                value={registerForm.email}
+                                onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="gymName">Gym Name *</Label>
+                            <Input
+                                id="gymName"
+                                placeholder="Fitness Pro Gym"
+                                value={registerForm.gymName}
+                                onChange={(e) => setRegisterForm(prev => ({ ...prev, gymName: e.target.value }))}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="gymAddress">Gym Address</Label>
+                            <Input
+                                id="gymAddress"
+                                placeholder="123 Main Street, City"
+                                value={registerForm.gymAddress}
+                                onChange={(e) => setRegisterForm(prev => ({ ...prev, gymAddress: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="message">Message (Optional)</Label>
+                            <Textarea
+                                id="message"
+                                placeholder="Tell us about your gym..."
+                                value={registerForm.message}
+                                onChange={(e) => setRegisterForm(prev => ({ ...prev, message: e.target.value }))}
+                                rows={3}
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowRegisterDialog(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={registerLoading}>
+                                {registerLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {registerLoading ? "Submitting..." : "Submit Application"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
+

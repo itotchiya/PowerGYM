@@ -41,13 +41,13 @@ export function Sidebar() {
     });
 
     return (
-        <div className="flex h-full w-64 flex-col bg-gray-900 border-r border-gray-800">
+        <div className="flex h-full w-64 flex-col bg-card border-r border-border">
             {/* Logo */}
-            <div className="flex h-16 items-center gap-2 border-b border-gray-800 px-6">
-                <div className="bg-orange-500 p-2 rounded-lg">
-                    <Dumbbell className="h-6 w-6 text-white" />
+            <div className="flex h-16 items-center gap-2 border-b border-border px-6">
+                <div className="bg-primary p-2 rounded-lg">
+                    <Dumbbell className="h-6 w-6 text-primary-foreground" />
                 </div>
-                <span className="text-xl font-bold text-white">PowerGYM</span>
+                <span className="text-xl font-bold">PowerGYM</span>
             </div>
 
             {/* Navigation */}
@@ -61,8 +61,8 @@ export function Sidebar() {
                             className={cn(
                                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                                 isActive
-                                    ? 'bg-orange-500 text-white'
-                                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                             )}
                         >
                             <item.icon className="h-5 w-5" />
@@ -73,8 +73,8 @@ export function Sidebar() {
             </nav>
 
             {/* Footer */}
-            <div className="border-t border-gray-800 p-4">
-                <p className="text-xs text-gray-400">PowerGYM v1.0</p>
+            <div className="border-t border-border p-4">
+                <p className="text-xs text-muted-foreground">PowerGYM v1.0</p>
             </div>
         </div>
     );

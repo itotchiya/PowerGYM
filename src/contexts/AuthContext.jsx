@@ -4,7 +4,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 const AuthContext = createContext({});
@@ -12,7 +12,7 @@ const AuthContext = createContext({});
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [userProfile, setUserProfile] = useState(null);
-    const [session, setSession] = useState(null);
+    const [session, setSessionState] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,18 +25,30 @@ export function AuthProvider({ children }) {
                     try {
                         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
                         if (userDoc.exists()) {
-                            setUserProfile(userDoc.data());
+                            const profile = userDoc.data();
+                            setUserProfile(profile);
+
+                            // For gym clients, check if there's an existing session
+                            if (profile.role === 'gymclient') {
+                                const sessionDoc = await getDoc(doc(db, 'sessions', firebaseUser.uid));
+                                if (sessionDoc.exists()) {
+                                    const sessionData = sessionDoc.data();
+                                    setSessionState(sessionData);
+                                } else {
+                                    // No session exists - user needs to select role
+                                    setSessionState(null);
+                                }
+                            }
                         } else {
                             console.warn('User document does not exist in Firestore for UID:', firebaseUser.uid);
                         }
                     } catch (error) {
                         console.error('Error fetching user profile:', error);
-                        // Optional: Handle error, e.g., show notification
                     }
                 } else {
                     setUser(null);
                     setUserProfile(null);
-                    setSession(null);
+                    setSessionState(null);
                 }
             } catch (error) {
                 console.error('Auth state change error:', error);
@@ -59,28 +71,39 @@ export function AuthProvider({ children }) {
 
     const signOut = async () => {
         try {
-            setSession(null);
+            // Clear session from Firestore on logout (ignore errors if no permission)
+            if (user) {
+                try {
+                    await deleteDoc(doc(db, 'sessions', user.uid));
+                } catch (e) {
+                    console.log('Could not delete session, continuing logout');
+                }
+            }
+            setSessionState(null);
             await firebaseSignOut(auth);
             return { success: true };
         } catch (error) {
+            console.error('Sign out error:', error);
             return { success: false, error: error.message };
         }
     };
 
-    const setUserSession = async (subrole) => {
+    // Set session - used when role is selected
+    const setSession = async (sessionData) => {
         if (!user || !userProfile) return;
 
-        const sessionData = {
+        const fullSessionData = {
             userId: user.uid,
             gymId: userProfile.gymId,
-            subrole: subrole,
+            gymName: userProfile.gymName || 'PowerGYM',
+            subrole: sessionData.subrole,
             createdAt: new Date().toISOString(),
         };
 
-        setSession(sessionData);
+        setSessionState(fullSessionData);
 
         // Persist session in Firestore
-        await setDoc(doc(db, 'sessions', user.uid), sessionData);
+        await setDoc(doc(db, 'sessions', user.uid), fullSessionData);
     };
 
     const isSuperAdmin = () => {
@@ -106,7 +129,7 @@ export function AuthProvider({ children }) {
         loading,
         signIn,
         signOut,
-        setUserSession,
+        setSession,
         isSuperAdmin,
         isGymClient,
         isOwner,
@@ -123,3 +146,4 @@ export function useAuth() {
     }
     return context;
 }
+

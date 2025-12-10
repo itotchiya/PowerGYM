@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -10,11 +11,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function Header() {
     const { user, userProfile, session, signOut } = useAuth();
+    const { theme, toggleTheme } = useTheme();
 
     const handleSignOut = async () => {
         const result = await signOut();
@@ -42,7 +44,7 @@ export function Header() {
     };
 
     return (
-        <header className="flex h-16 items-center justify-between border-b bg-white px-6">
+        <header className="flex h-16 items-center justify-between border-b bg-background px-6">
             <div>
                 <h1 className="text-xl font-semibold">
                     {userProfile?.role === 'superadmin' ? 'Super Admin Dashboard' : 'Gym Dashboard'}
@@ -51,6 +53,20 @@ export function Header() {
 
             <div className="flex items-center gap-4">
                 {getRoleBadge()}
+
+                {/* Theme Toggle Button */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleTheme}
+                    aria-label="Toggle theme"
+                >
+                    {theme === 'light' ? (
+                        <Moon className="h-5 w-5" />
+                    ) : (
+                        <Sun className="h-5 w-5" />
+                    )}
+                </Button>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>

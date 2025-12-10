@@ -2,19 +2,22 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { LandingPage } from '@/pages/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
-import { RoleSelectionPage } from '@/pages/RoleSelectionPage';
+import { RoleSelection } from '@/pages/RoleSelection';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 // Dashboard Pages
 import { GymDashboard } from '@/pages/dashboard/GymDashboard';
 import { SuperAdminDashboard } from '@/pages/superadmin/SuperAdminDashboard';
+import { GymRequestsPage } from '@/pages/superadmin/GymRequestsPage';
 
 // Gym Client Pages
 import { MembersPage } from '@/pages/members/MembersPage';
+import { MemberProfilePage } from '@/pages/members/MemberProfilePage';
 import { ExpiringSoonPage } from '@/pages/ExpiringSoonPage';
 import { WarningsPage } from '@/pages/WarningsPage';
 import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
 import { PlansPage } from '@/pages/PlansPage';
+import { SettingsPage } from '@/pages/SettingsPage';
 
 function App() {
   const { user, userProfile, session, loading } = useAuth();
@@ -37,13 +40,15 @@ function App() {
         <Route
           path="/"
           element={!user ? <LandingPage /> : (
-            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> : <Navigate to="/dashboard" />
+            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> :
+              !session ? <Navigate to="/select-role" /> : <Navigate to="/dashboard" />
           )}
         />
         <Route
           path="/login"
           element={!user ? <LoginPage /> : (
-            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> : <Navigate to="/dashboard" />
+            userProfile?.role === 'superadmin' ? <Navigate to="/superadmin/dashboard" /> :
+              !session ? <Navigate to="/select-role" /> : <Navigate to="/dashboard" />
           )}
         />
 
@@ -52,7 +57,7 @@ function App() {
           path="/select-role"
           element={
             user && userProfile?.role === 'gymclient' && !session ? (
-              <RoleSelectionPage />
+              <RoleSelection />
             ) : (
               <Navigate to="/dashboard" />
             )
@@ -65,6 +70,14 @@ function App() {
           element={
             <ProtectedRoute requireSuperAdmin>
               <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/superadmin/requests"
+          element={
+            <ProtectedRoute requireSuperAdmin>
+              <GymRequestsPage />
             </ProtectedRoute>
           }
         />
@@ -84,6 +97,15 @@ function App() {
           element={
             <ProtectedRoute>
               <MembersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/members/:memberId"
+          element={
+            <ProtectedRoute>
+              <MemberProfilePage />
             </ProtectedRoute>
           }
         />
@@ -121,6 +143,15 @@ function App() {
           element={
             <ProtectedRoute requireOwner>
               <PlansPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute requireOwner>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />
