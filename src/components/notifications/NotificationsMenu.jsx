@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, where } from "firebase/firestore";
@@ -26,6 +27,7 @@ import { toast } from "sonner";
 export function NotificationsMenu() {
     const navigate = useNavigate();
     const { user, userProfile, session } = useAuth();
+    const { t } = useTranslation();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isMobile, setIsMobile] = useState(false);
@@ -129,7 +131,7 @@ export function NotificationsMenu() {
 
             if (dialogType === 'decline') {
                 if (!declineReason.trim()) {
-                    toast.error("Please provide a reason for declining.");
+                    toast.error(t('notifications.provideReason'));
                     setIsProcessing(false);
                     return;
                 }
@@ -139,7 +141,7 @@ export function NotificationsMenu() {
                     rejectionReason: declineReason,
                     processedAt: serverTimestamp()
                 });
-                toast.success("Request declined.");
+                toast.success(t('notifications.requestDeclined'));
             }
             else if (dialogType === 'approve') {
                 // 1. Update the Request Status
@@ -168,7 +170,7 @@ export function NotificationsMenu() {
                         }
                     }
                 }
-                toast.success("Request approved and changes applied.");
+                toast.success(t('notifications.requestApproved'));
             }
 
             // Close dialogs
@@ -177,7 +179,7 @@ export function NotificationsMenu() {
 
         } catch (error) {
             console.error("Error processing request:", error);
-            toast.error("Failed to process request: " + error.message);
+            toast.error(t('notifications.processingError'));
         } finally {
             setIsProcessing(false);
         }
@@ -216,9 +218,9 @@ export function NotificationsMenu() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[400px] p-0 overflow-hidden rounded-xl shadow-lg border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="p-4 border-b flex items-center justify-between bg-muted/30">
-                        <h4 className="font-semibold">Notifications</h4>
+                        <h4 className="font-semibold">{t('nav.notifications')}</h4>
                         <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                            {unreadCount} pending
+                            {unreadCount} {t('notifications.pending')}
                         </span>
                     </div>
 
@@ -228,7 +230,7 @@ export function NotificationsMenu() {
                                 <div className="flex justify-center mb-3">
                                     <Bell className="h-8 w-8 opacity-20" />
                                 </div>
-                                No new notifications
+                                {t('notifications.noNew')}
                             </div>
                         ) : (
                             notifications.map((note) => (
@@ -246,13 +248,13 @@ export function NotificationsMenu() {
                                                 <div className="text-sm font-semibold flex items-center gap-2">
                                                     {currentRole === 'owner' ? (
                                                         <>
-                                                            {note.status === 'approved' && <span className="text-green-600">Request Approved</span>}
-                                                            {note.status === 'rejected' && <span className="text-red-600">Request Declined</span>}
-                                                            {note.status === 'pending' && <span>Request Pending</span>}
+                                                            {note.status === 'approved' && <span className="text-green-600">{t('notifications.requestApprovedTitle')}</span>}
+                                                            {note.status === 'rejected' && <span className="text-red-600">{t('notifications.requestDeclinedTitle')}</span>}
+                                                            {note.status === 'pending' && <span>{t('notifications.requestPending')}</span>}
                                                         </>
                                                     ) : (
                                                         <>
-                                                            {note.type === 'gym_name_change' ? "Gym Name Change" : "Notification"}
+                                                            {note.type === 'gym_name_change' ? t('notifications.gymNameChange') : t('nav.notifications')}
                                                         </>
                                                     )}
                                                     {/* Status Dot */}
@@ -279,7 +281,7 @@ export function NotificationsMenu() {
                                             {/* Rejection Reason (Custom Layout) */}
                                             {note.status === 'rejected' && note.rejectionReason && (
                                                 <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 p-2 rounded-md mb-2">
-                                                    <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-1">REJECTION REASON</p>
+                                                    <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-1">{t('notifications.rejectionReason')}</p>
                                                     <p className="text-xs text-red-600/90 dark:text-red-400/90 italic">"{note.rejectionReason}"</p>
                                                 </div>
                                             )}
@@ -296,7 +298,7 @@ export function NotificationsMenu() {
                                                 onClick={() => handleActionClick(note, 'decline')}
                                             >
                                                 <X className="h-3.5 w-3.5" />
-                                                Decline
+                                                {t('notifications.decline')}
                                             </Button>
                                             <Button
                                                 size="sm"
@@ -304,7 +306,7 @@ export function NotificationsMenu() {
                                                 onClick={() => handleActionClick(note, 'approve')}
                                             >
                                                 <Check className="h-3.5 w-3.5" />
-                                                Approve Change
+                                                {t('notifications.approveChange')}
                                             </Button>
                                         </div>
                                     )}
@@ -319,7 +321,7 @@ export function NotificationsMenu() {
                             className="w-full text-xs h-8 text-muted-foreground hover:text-primary"
                             onClick={() => window.location.href = '/notifications'}
                         >
-                            View all notifications
+                            {t('notifications.viewAll')}
                         </Button>
                     </div>
                 </DropdownMenuContent>
@@ -330,12 +332,12 @@ export function NotificationsMenu() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            {dialogType === 'approve' ? "Approve Name Change" : "Decline Request"}
+                            {dialogType === 'approve' ? t('notifications.approveNameChange') : t('notifications.declineRequest')}
                         </DialogTitle>
                         <DialogDescription>
                             {dialogType === 'approve'
-                                ? "Are you sure you want to approve this name change? This will update the gym's official name immediately."
-                                : "Please provide a reason for declining this request. The owner will be notified."}
+                                ? t('notifications.approveConfirmation')
+                                : t('notifications.declineConfirmation')}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -350,7 +352,7 @@ export function NotificationsMenu() {
                     {dialogType === 'decline' && (
                         <div className="py-2">
                             <Textarea
-                                placeholder="Reason for rejection..."
+                                placeholder={t('notifications.reasonPlaceholder')}
                                 value={declineReason}
                                 onChange={(e) => setDeclineReason(e.target.value)}
                                 rows={4}
@@ -360,14 +362,14 @@ export function NotificationsMenu() {
 
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setDialogType(null)} disabled={isProcessing}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button
                             variant={dialogType === 'decline' ? "destructive" : "default"}
                             onClick={handleConfirmAction}
                             disabled={isProcessing}
                         >
-                            {isProcessing ? "Processing..." : (dialogType === 'approve' ? "Confirm Approval" : "Decline Request")}
+                            {isProcessing ? t('common.loading') : (dialogType === 'approve' ? t('notifications.confirmApproval') : t('notifications.declineRequest'))}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

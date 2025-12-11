@@ -1,23 +1,17 @@
 import { useTheme } from '@/contexts/ThemeContext';
-import { Button } from '@/components/ui/button';
-import { Moon, Sun } from 'lucide-react';
+import { Switch } from '@/components/ui/motion-switch';
 
 export function ThemeSwitch() {
     const { theme, toggleTheme } = useTheme();
     const isDark = theme === 'dark';
 
     return (
-        <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
+        <Switch
+            size="lg"
+            checked={isDark}
+            onCheckedChange={toggleTheme}
             aria-label="Toggle dark mode"
-        >
-            {isDark ? (
-                <Sun className="h-5 w-5" />
-            ) : (
-                <Moon className="h-5 w-5" />
-            )}
-        </Button>
+            className="data-[state=checked]:bg-foreground data-[state=unchecked]:bg-input"
+        />
     );
 }

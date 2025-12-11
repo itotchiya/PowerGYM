@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ const COLORS = {
 export function GymDashboard() {
     const navigate = useNavigate();
     const { userProfile, session, isOwner, isManager } = useAuth();
+    const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -259,7 +261,7 @@ export function GymDashboard() {
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
                     </div>
                 </div>
             </DashboardLayout>
@@ -271,16 +273,16 @@ export function GymDashboard() {
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+                        <h2 className="text-3xl font-bold tracking-tight">{t('nav.dashboard')}</h2>
                         <p className="text-muted-foreground">
-                            Welcome to your PowerGYM dashboard
+                            {t('dashboard.welcome')}
                         </p>
                     </div>
                     {/* Add Member Action - Visible to Manager & Owner explicitly */}
                     {(isOwner() || isManager()) && (
-                        <Button onClick={() => setShowAddMemberDialog(true)}>
+                        <Button onClick={() => navigate('/members/add')}>
                             <Plus className="mr-2 h-4 w-4" />
-                            Add Member
+                            {t('members.addNewMember')}
                         </Button>
                     )}
                 </div>
@@ -290,60 +292,60 @@ export function GymDashboard() {
                     {/* Total Members -> All */}
                     <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('dashboard.totalMembers')}</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{totalMembers}</div>
-                            <p className="text-xs text-muted-foreground">{activeMembers} active</p>
+                            <p className="text-xs text-muted-foreground">{activeMembers} {t('members.active')}</p>
                         </CardContent>
                     </Card>
 
                     {/* Active Members -> ?status=active */}
                     <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?status=active')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Active Members</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('dashboard.activeMembers')}</CardTitle>
                             <UserCheck className="h-4 w-4 text-green-500" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{activeMembers}</div>
-                            <p className="text-xs text-muted-foreground">100% of total</p>
+                            <p className="text-xs text-muted-foreground">{t('dashboard.ofTotal', { percent: '100%' })}</p>
                         </CardContent>
                     </Card>
 
                     {/* Expired Members -> ?status=expired */}
                     <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?status=expired')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Expired Members</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('dashboard.expiredMembers')}</CardTitle>
                             <AlertCircle className="h-4 w-4 text-destructive" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{expiredMembers}</div>
-                            <p className="text-xs text-muted-foreground">Members to re-engage</p>
+                            <p className="text-xs text-muted-foreground">{t('dashboard.membersToReengage')}</p>
                         </CardContent>
                     </Card>
 
                     {/* Outstanding Payments -> ?payment=outstanding */}
                     <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?payment=outstanding')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Outstanding Payments</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('dashboard.outstandingPayments')}</CardTitle>
                             <DollarSign className="h-4 w-4 text-orange-500" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{outstandingPaymentsMembers}</div>
-                            <p className="text-xs text-muted-foreground">Total: {totalOutstanding.toLocaleString()} MAD</p>
+                            <p className="text-xs text-muted-foreground">{t('common.total')}: {totalOutstanding.toLocaleString()} MAD</p>
                         </CardContent>
                     </Card>
 
                     {/* Unpaid Insurance -> ?insurance=unpaid */}
                     <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/members?insurance=unpaid')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Unpaid Insurance</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('dashboard.unpaidInsurance')}</CardTitle>
                             <Shield className="h-4 w-4 text-blue-500" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{unpaidInsuranceMembers}</div>
-                            <p className="text-xs text-muted-foreground">Members needing to pay</p>
+                            <p className="text-xs text-muted-foreground">{t('dashboard.membersNeedingToPay')}</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -353,18 +355,18 @@ export function GymDashboard() {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-semibold">Member Analytics</h3>
-                                <p className="text-sm text-muted-foreground">Distribution and status overview</p>
+                                <h3 className="text-lg font-semibold">{t('dashboard.memberAnalytics')}</h3>
+                                <p className="text-sm text-muted-foreground">{t('dashboard.distributionOverview')}</p>
                             </div>
                             <Select value={dateFilter} onValueChange={setDateFilter}>
                                 <SelectTrigger className="w-[160px]">
                                     <SelectValue placeholder="Filter" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all_time">All Time</SelectItem>
-                                    <SelectItem value="this_month">This Month</SelectItem>
-                                    <SelectItem value="this_year">This Year</SelectItem>
-                                    <SelectItem value="year_to_now">Year to Date</SelectItem>
+                                    <SelectItem value="all_time">{t('time.allTime')}</SelectItem>
+                                    <SelectItem value="this_month">{t('time.thisMonth')}</SelectItem>
+                                    <SelectItem value="this_year">{t('time.thisYear')}</SelectItem>
+                                    <SelectItem value="year_to_now">{t('time.yearToDate')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -379,8 +381,8 @@ export function GymDashboard() {
                 {isOwner() && (
                     <div className="space-y-6">
                         <div>
-                            <h3 className="text-xl font-semibold tracking-tight">Revenue Insights</h3>
-                            <p className="text-muted-foreground text-sm">A breakdown of your gym's financial performance.</p>
+                            <h3 className="text-xl font-semibold tracking-tight">{t('dashboard.revenueInsights')}</h3>
+                            <p className="text-muted-foreground text-sm">{t('dashboard.financialBreakdown')}</p>
                         </div>
 
                         {/* Row 1: Subscriptions */}
@@ -388,32 +390,32 @@ export function GymDashboard() {
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Earnings</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.earnings')}</CardTitle>
                                         <div className="text-2xl font-bold text-green-600">{totalSubscriptionRevenue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Total membership fees paid</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.totalMembershipFees')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.outstanding')}</CardTitle>
                                         <div className="text-2xl font-bold text-destructive">{totalLikelyOutstandingSub.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Membership fees yet to be collected</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.feesToCollect')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Subscriptions</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.totalSubscriptions')}</CardTitle>
                                         <div className="text-2xl font-bold">{totalSubscriptionValue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <CreditCard className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Total value of all subscriptions</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.totalSubValue')}</p></CardContent>
                             </Card>
                         </div>
 
@@ -422,32 +424,32 @@ export function GymDashboard() {
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Insurance Paid</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.insurancePaid')}</CardTitle>
                                         <div className="text-2xl font-bold text-blue-600">{totalInsurancePaid.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <Shield className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Total insurance fees collected</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.insuranceCollected')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Insurance Not Paid</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.insuranceNotPaid')}</CardTitle>
                                         <div className="text-2xl font-bold text-orange-500">{totalLikelyOutstandingIns.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <AlertCircle className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Potential insurance fees</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.potentialInsurance')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Insurance</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.totalInsurance')}</CardTitle>
                                         <div className="text-2xl font-bold">{totalInsuranceValue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <Shield className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Total value of all insurance fees</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.totalInsuranceValue')}</p></CardContent>
                             </Card>
                         </div>
 
@@ -456,32 +458,32 @@ export function GymDashboard() {
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (This Month)</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.revenueThisMonth')}</CardTitle>
                                         <div className="text-2xl font-bold text-primary">{revenueThisMonth.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <Calendar className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Earnings + Insurance this month</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.earningsThisMonth')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (This Year)</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.revenueThisYear')}</CardTitle>
                                         <div className="text-2xl font-bold text-primary">{revenueThisYear.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <Calendar className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Earnings + Insurance this year</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.earningsThisYear')}</p></CardContent>
                             </Card>
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <div className="flex flex-col">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (All Time)</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{t('dashboard.revenueAllTime')}</CardTitle>
                                         <div className="text-2xl font-bold text-primary">{grandTotalRevenue.toLocaleString()} <span className="text-sm font-normal text-muted-foreground">MAD</span></div>
                                     </div>
                                     <History className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
-                                <CardContent><p className="text-xs text-muted-foreground">Total Earnings + Total Insurance Paid</p></CardContent>
+                                <CardContent><p className="text-xs text-muted-foreground">{t('dashboard.totalEarningsInsurance')}</p></CardContent>
                             </Card>
                         </div>
 
@@ -489,7 +491,7 @@ export function GymDashboard() {
                         <Card className="col-span-4">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
-                                    <CardTitle>Revenue Overview</CardTitle>
+                                    <CardTitle>{t('dashboard.revenueOverview')}</CardTitle>
                                     <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
                                         <SelectTrigger className="w-[180px]">
                                             <SelectValue placeholder="Select Year" />
@@ -522,16 +524,16 @@ export function GymDashboard() {
             < Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog} >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add New Member</DialogTitle>
+                        <DialogTitle>{t('members.addNewMember')}</DialogTitle>
                         <DialogDescription>
-                            Create a new gym member with initial subscription
+                            {t('members.createNewMember')}
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddMember}>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="firstName">First Name</Label>
+                                    <Label htmlFor="firstName">{t('members.firstName')}</Label>
                                     <Input
                                         id="firstName"
                                         value={memberForm.firstName}
@@ -540,7 +542,7 @@ export function GymDashboard() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="lastName">Last Name</Label>
+                                    <Label htmlFor="lastName">{t('members.lastName')}</Label>
                                     <Input
                                         id="lastName"
                                         value={memberForm.lastName}
@@ -550,7 +552,7 @@ export function GymDashboard() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">{t('auth.email')}</Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -560,7 +562,7 @@ export function GymDashboard() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone">Phone</Label>
+                                <Label htmlFor="phone">{t('members.phone')}</Label>
                                 <Input
                                     id="phone"
                                     value={memberForm.phone}
@@ -569,10 +571,10 @@ export function GymDashboard() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="planId">Membership Plan</Label>
+                                <Label htmlFor="planId">{t('members.membershipPlan')}</Label>
                                 <Select value={memberForm.planId} onValueChange={(v) => setMemberForm({ ...memberForm, planId: v })} required>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select a plan" />
+                                        <SelectValue placeholder={t('members.selectPlan')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {plans.map((plan) => (
@@ -586,9 +588,9 @@ export function GymDashboard() {
                         </div>
                         <DialogFooter className="mt-6">
                             <Button type="button" variant="outline" onClick={() => setShowAddMemberDialog(false)}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
-                            <Button type="submit">Add Member</Button>
+                            <Button type="submit">{t('members.addMember')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ import { Trash2, RotateCcw, MoreVertical, AlertCircle } from 'lucide-react';
 export function DeletedMembersPage() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
+    const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showRestoreDialog, setShowRestoreDialog] = useState(false);
@@ -61,7 +63,7 @@ export function DeletedMembersPage() {
 
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Failed to load deleted members');
+            toast.error(t('deleted.loadError'));
         } finally {
             setLoading(false);
         }
@@ -82,13 +84,13 @@ export function DeletedMembersPage() {
                 deletedAt: null
             });
 
-            toast.success('Member restored successfully');
+            toast.success(t('members.memberRestored'));
             setShowRestoreDialog(false);
             setSelectedMember(null);
             fetchData();
         } catch (error) {
             console.error('Error restoring member:', error);
-            toast.error('Failed to restore member');
+            toast.error(t('deleted.restoreError'));
         }
     };
 
@@ -100,13 +102,13 @@ export function DeletedMembersPage() {
             const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
             await deleteDoc(memberRef);
 
-            toast.success('Member permanently deleted');
+            toast.success(t('deleted.permanentlyDeleted'));
             setShowDeleteDialog(false);
             setSelectedMember(null);
             fetchData();
         } catch (error) {
             console.error('Error deleting member:', error);
-            toast.error('Failed to delete member permanently');
+            toast.error(t('deleted.deleteError'));
         }
     };
 
@@ -126,7 +128,7 @@ export function DeletedMembersPage() {
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
                     </div>
                 </div>
             </DashboardLayout>
@@ -139,9 +141,9 @@ export function DeletedMembersPage() {
                 <div className="flex items-center gap-3">
                     <Trash2 className="h-8 w-8 text-muted-foreground" />
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">Deleted Members</h2>
+                        <h2 className="text-3xl font-bold tracking-tight">{t('nav.deletedMembers')}</h2>
                         <p className="text-muted-foreground">
-                            Restore or permanently delete members - Owner access only
+                            {t('deleted.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -149,24 +151,24 @@ export function DeletedMembersPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>
-                            {members.length} Deleted {members.length === 1 ? 'Member' : 'Members'}
+                            {t('deleted.deletedCount', { count: members.length })}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         {members.length === 0 ? (
                             <div className="text-center py-12">
                                 <Trash2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground">No deleted members</p>
+                                <p className="text-muted-foreground">{t('deleted.noDeletedMembers')}</p>
                             </div>
                         ) : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Phone</TableHead>
-                                        <TableHead>Deleted On</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+                                        <TableHead>{t('members.fullName')}</TableHead>
+                                        <TableHead>{t('members.email')}</TableHead>
+                                        <TableHead>{t('members.phone')}</TableHead>
+                                        <TableHead>{t('deleted.deletedOn')}</TableHead>
+                                        <TableHead className="text-right rtl:text-left">{t('common.actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -180,10 +182,10 @@ export function DeletedMembersPage() {
                                             <TableCell>
                                                 {member.deletedAt
                                                     ? new Date(member.deletedAt.toDate()).toLocaleDateString()
-                                                    : 'N/A'
+                                                    : t('common.notAvailable')
                                                 }
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="text-right rtl:text-left">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="sm">
@@ -193,14 +195,14 @@ export function DeletedMembersPage() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuItem onClick={() => openRestoreDialog(member)}>
                                                             <RotateCcw className="mr-2 h-4 w-4" />
-                                                            Restore Member
+                                                            {t('members.restoreMember')}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             onClick={() => openDeleteDialog(member)}
                                                             className="text-destructive"
                                                         >
                                                             <Trash2 className="mr-2 h-4 w-4" />
-                                                            Delete Permanently
+                                                            {t('deleted.deletePermanently')}
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -218,18 +220,17 @@ export function DeletedMembersPage() {
             <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Restore Member</DialogTitle>
+                        <DialogTitle>{t('members.restoreMember')}</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to restore {selectedMember?.firstName} {selectedMember?.lastName}?
-                            This will make them visible again in the members list.
+                            {t('deleted.restoreConfirmation', { name: `${selectedMember?.firstName} ${selectedMember?.lastName}` })}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setShowRestoreDialog(false)}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button type="button" onClick={handleRestoreMember}>
-                            Restore Member
+                            {t('members.restoreMember')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -239,15 +240,15 @@ export function DeletedMembersPage() {
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Permanently Delete Member</DialogTitle>
+                        <DialogTitle>{t('deleted.permanentlyDeleteTitle')}</DialogTitle>
                         <DialogDescription>
                             <div className="space-y-3">
                                 <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                                     <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
                                     <div>
-                                        <p className="font-semibold text-destructive">Warning: This action cannot be undone!</p>
+                                        <p className="font-semibold text-destructive">{t('deleted.warning')}</p>
                                         <p className="text-sm text-muted-foreground mt-1">
-                                            This will permanently delete {selectedMember?.firstName} {selectedMember?.lastName} and all their data from the database.
+                                            {t('deleted.permanentDeleteWarning', { name: `${selectedMember?.firstName} ${selectedMember?.lastName}` })}
                                         </p>
                                     </div>
                                 </div>
@@ -256,10 +257,10 @@ export function DeletedMembersPage() {
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button type="button" variant="destructive" onClick={handlePermanentDelete}>
-                            Delete Permanently
+                            {t('deleted.deletePermanently')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

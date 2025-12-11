@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
@@ -12,24 +13,25 @@ import {
     Inbox
 } from 'lucide-react';
 
-const gymNavigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Members', href: '/members', icon: Users },
-    { name: 'Expiring Soon', href: '/expiring-soon', icon: Clock },
-    { name: 'Warnings', href: '/warnings', icon: AlertCircle, ownerOnly: true },
-    { name: 'Deleted', href: '/deleted', icon: Trash2, ownerOnly: true },
-    { name: 'Plans', href: '/plans', icon: CreditCard, ownerOnly: true },
-];
-
-const superAdminNavigation = [
-    { name: 'Dashboard', href: '/superadmin/dashboard', icon: LayoutDashboard },
-    { name: 'Gyms', href: '/superadmin/gyms', icon: Building2 },
-    { name: 'Requests', href: '/superadmin/requests', icon: Inbox },
-];
-
 export function NavigationTabs() {
     const location = useLocation();
     const { isSuperAdmin, isOwner } = useAuth();
+    const { t } = useTranslation();
+
+    const gymNavigation = [
+        { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+        { name: t('nav.members'), href: '/members', icon: Users },
+        { name: t('nav.expiringSoon'), href: '/expiring-soon', icon: Clock },
+        { name: t('nav.warnings'), href: '/warnings', icon: AlertCircle, ownerOnly: true },
+        { name: t('nav.deleted'), href: '/deleted', icon: Trash2, ownerOnly: true },
+        { name: t('nav.plans'), href: '/plans', icon: CreditCard, ownerOnly: true },
+    ];
+
+    const superAdminNavigation = [
+        { name: t('nav.dashboard'), href: '/superadmin/dashboard', icon: LayoutDashboard },
+        { name: t('superadmin.gyms'), href: '/superadmin/gyms', icon: Building2 },
+        { name: t('superadmin.requests'), href: '/superadmin/requests', icon: Inbox },
+    ];
 
     const navItems = isSuperAdmin() ? superAdminNavigation : gymNavigation;
 
@@ -51,7 +53,7 @@ export function NavigationTabs() {
 
                         return (
                             <Link
-                                key={item.name}
+                                key={item.href}
                                 to={item.href}
                                 className={cn(
                                     'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
@@ -70,3 +72,4 @@ export function NavigationTabs() {
         </div>
     );
 }
+

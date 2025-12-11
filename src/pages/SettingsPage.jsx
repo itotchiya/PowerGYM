@@ -1,10 +1,15 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { Switch } from "@/components/ui/motion-switch";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
     Dialog,
     DialogContent,
@@ -17,11 +22,17 @@ import { toast } from "sonner";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { doc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { ChevronRight, Lock, Building, Wallet, ShieldCheck, PenSquare } from "lucide-react";
+import { ChevronRight, Lock, Building, Wallet, ShieldCheck, PenSquare, Globe, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
-    const { user, userProfile } = useAuth();
+    const { user, userProfile, session } = useAuth();
+    const { t } = useTranslation();
+    const { theme, toggleTheme } = useTheme();
+
+    // Determine current role (manager vs owner)
+    const currentRole = session?.subrole || 'manager';
+    const isOwner = currentRole === 'owner';
 
     // Login Password Change State
     const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
@@ -35,6 +46,9 @@ export function SettingsPage() {
         newName: "",
         reason: ""
     });
+
+    // Language Dialog State
+    const [isLanguageDialogOpen, setIsLanguageDialogOpen] = useState(false);
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -55,12 +69,12 @@ export function SettingsPage() {
         e.preventDefault();
 
         if (passwordForm.new.length < 6) {
-            toast.error("New password must be at least 6 characters");
+            toast.error(t('settings.passwordTooShort', { min: 6 }));
             return;
         }
 
         if (passwordForm.new !== passwordForm.confirm) {
-            toast.error("New passwords do not match");
+            toast.error(t('settings.passwordMismatch'));
             return;
         }
 
@@ -68,7 +82,7 @@ export function SettingsPage() {
 
         try {
             if (!auth.currentUser) {
-                toast.error("User not authenticated.");
+                toast.error(t('errors.unauthorized'));
                 return;
             }
 
@@ -79,17 +93,17 @@ export function SettingsPage() {
             // 2. Update password
             await updatePassword(auth.currentUser, passwordForm.new);
 
-            toast.success("Login password updated successfully");
+            toast.success(t('settings.passwordUpdated'));
             setIsPasswordDialogOpen(false);
             setPasswordForm({ current: "", new: "", confirm: "" });
         } catch (error) {
             console.error("Error updating password:", error);
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-                toast.error("Current password is incorrect");
+                toast.error(t('settings.currentPasswordIncorrect'));
             } else if (error.code === 'auth/requires-recent-login') {
-                toast.error("Please log out and log back in to change your password.");
+                toast.error(t('errors.unauthorized'));
             } else {
-                toast.error("Failed to update password. " + error.message);
+                toast.error(t('errors.somethingWentWrong'));
             }
         } finally {
             setIsLoading(false);
@@ -101,12 +115,12 @@ export function SettingsPage() {
         e.preventDefault();
 
         if (ownerPasswordForm.new.length < 4) {
-            toast.error("Owner password must be at least 4 characters");
+            toast.error(t('settings.passwordTooShort', { min: 4 }));
             return;
         }
 
         if (ownerPasswordForm.new !== ownerPasswordForm.confirm) {
-            toast.error("New passwords do not match");
+            toast.error(t('settings.passwordMismatch'));
             return;
         }
 
@@ -117,7 +131,7 @@ export function SettingsPage() {
             const currentHash = btoa(ownerPasswordForm.current);
             // Default to comparing against valid hash, handle case if undefined
             if (userProfile?.ownerPasswordHash && currentHash !== userProfile.ownerPasswordHash) {
-                toast.error("Current owner password is incorrect");
+                toast.error(t('settings.currentPasswordIncorrect'));
                 setIsLoading(false);
                 return;
             }
@@ -128,13 +142,13 @@ export function SettingsPage() {
                 ownerPasswordHash: newHash
             });
 
-            toast.success("Owner access password updated successfully");
+            toast.success(t('settings.passwordUpdated'));
             setIsOwnerPasswordDialogOpen(false);
             setOwnerPasswordForm({ current: "", new: "", confirm: "" });
 
         } catch (error) {
             console.error("Error updating owner password:", error);
-            toast.error("Failed to update owner password");
+            toast.error(t('errors.somethingWentWrong'));
         } finally {
             setIsLoading(false);
         }
@@ -145,7 +159,7 @@ export function SettingsPage() {
         e.preventDefault();
 
         if (!nameChangeForm.newName.trim()) {
-            toast.error("Please enter a new name");
+            toast.error(t('errors.requiredField'));
             return;
         }
 
@@ -169,124 +183,183 @@ export function SettingsPage() {
                 createdAt: serverTimestamp()
             });
 
-            toast.success("Name change request sent to PowerGYM team! You will be notified when it's reviewed.");
+            toast.success(t('settings.requestSent'));
             setIsNameChangeDialogOpen(false);
             setNameChangeForm({ newName: "", reason: "" });
 
         } catch (error) {
             console.error("Error submitting name change request:", error);
-            toast.error("Failed to submit request");
+            toast.error(t('errors.somethingWentWrong'));
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <DashboardLayout>
+        <DashboardLayout hideNav>
             <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
-                {/* Header */}
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-                    <p className="text-muted-foreground mt-1">
-                        Manage your account preferences and gym details.
-                    </p>
-                </div>
+                {/* Header with Back Button */}
+                <PageHeader
+                    title={t('settings.title')}
+                    subtitle={t('settings.subtitle')}
+                    backTo="/dashboard"
+                />
 
-                {/* Settings Group: Account */}
+                {/* Settings Group: Account - Owner Only */}
+                {isOwner && (
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">{t('settings.account')}</h3>
+                        <div className="rounded-[20px] overflow-hidden">
+
+                            {/* Change Login Password Item */}
+                            <div
+                                onClick={() => setIsPasswordDialogOpen(true)}
+                                className={cn(
+                                    "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                    "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
+                                        <Lock className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.loginPassword')}</div>
+                                        <div className="text-sm text-muted-foreground">{t('settings.updateLoginPassword')}</div>
+                                    </div>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+                            </div>
+
+                            {/* Change Owner Password Item */}
+                            <div
+                                onClick={() => setIsOwnerPasswordDialogOpen(true)}
+                                className={cn(
+                                    "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                    "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-purple-500/10 text-purple-500">
+                                        <ShieldCheck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.ownerAccessPassword')}</div>
+                                        <div className="text-sm text-muted-foreground">{t('settings.ownerAccessPasswordDesc')}</div>
+                                    </div>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+
+                {/* Settings Group: Preferences - Available for all */}
                 <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">Account</h3>
-                    <div className="rounded-[20px] overflow-hidden">
+                    <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">{t('settings.preferences')}</h3>
+                    <div className="rounded-[20px] overflow-hidden flex flex-col gap-[4px]">
 
-                        {/* Change Login Password Item */}
+                        {/* Language Selector - Clickable with Dialog */}
                         <div
-                            onClick={() => setIsPasswordDialogOpen(true)}
+                            onClick={() => setIsLanguageDialogOpen(true)}
                             className={cn(
-                                "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px]",
                                 "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
                             )}
                         >
                             <div className="flex items-center gap-4">
-                                <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
-                                    <Lock className="w-5 h-5" />
+                                <div className="p-2 rounded-full bg-indigo-500/10 text-indigo-500">
+                                    <Globe className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <div className="font-medium">Login Password</div>
-                                    <div className="text-sm text-muted-foreground">Update your account login password</div>
+                                    <div className="font-medium">{t('settings.language')}</div>
+                                    <div className="text-sm text-muted-foreground">{t('settings.selectLanguage')}</div>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+                            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                         </div>
 
-                        {/* Change Owner Password Item */}
+                        {/* Dark Mode Toggle - Clickable Card */}
                         <div
-                            onClick={() => setIsOwnerPasswordDialogOpen(true)}
+                            onClick={() => toggleTheme()}
                             className={cn(
-                                "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                "cursor-pointer flex items-center justify-between p-4 rounded-[4px] transition-all",
                                 "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
                             )}
                         >
                             <div className="flex items-center gap-4">
-                                <div className="p-2 rounded-full bg-purple-500/10 text-purple-500">
-                                    <ShieldCheck className="w-5 h-5" />
+                                <div className="p-2 rounded-full bg-slate-500/10 text-slate-500 dark:text-slate-400">
+                                    <Moon className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <div className="font-medium">Owner Access Password</div>
-                                    <div className="text-sm text-muted-foreground">Password for sensitive owner actions</div>
+                                    <div className="font-medium">{t('settings.darkMode')}</div>
+                                    <div className="text-sm text-muted-foreground">{t('settings.toggleDarkMode')}</div>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <Switch
+                                    size="lg"
+                                    checked={theme === 'dark'}
+                                    onCheckedChange={toggleTheme}
+                                    aria-label="Toggle dark mode"
+                                    className="data-[state=checked]:bg-foreground data-[state=unchecked]:bg-input"
+                                />
+                            </div>
                         </div>
 
                     </div>
                 </div>
 
-                {/* Settings Group: Gym Information */}
-                <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">Gym Information</h3>
-                    <div className="rounded-[20px] overflow-hidden">
+                {/* Settings Group: Gym Information - Owner Only */}
+                {isOwner && (
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">{t('settings.gymInformation')}</h3>
+                        <div className="rounded-[20px] overflow-hidden">
 
-                        {/* Gym Name (Actionable) */}
-                        <div
-                            onClick={() => setIsNameChangeDialogOpen(true)}
-                            className={cn(
-                                "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
-                                "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
-                            )}
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="p-2 rounded-full bg-orange-500/10 text-orange-500">
-                                    <Building className="w-5 h-5" />
+                            {/* Gym Name (Actionable) */}
+                            <div
+                                onClick={() => setIsNameChangeDialogOpen(true)}
+                                className={cn(
+                                    "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                    "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-orange-500/10 text-orange-500">
+                                        <Building className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.gymName')}</div>
+                                        <div className="text-sm text-muted-foreground">{userProfile?.gymName || t('common.notSet')}</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="font-medium">Gym Name</div>
-                                    <div className="text-sm text-muted-foreground">{userProfile?.gymName || "Not set"}</div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                    <span>{t('settings.changeName')}</span>
+                                    <PenSquare className="w-3.5 h-3.5" />
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                                <span>Change Name</span>
-                                <PenSquare className="w-3.5 h-3.5" />
+
+                            {/* Subscription / Plan (Placeholder) */}
+                            <div className={cn(
+                                "flex items-center justify-between p-4 rounded-[4px] last:mb-0 backdrop-blur-sm shadow-none",
+                                "bg-black/4 dark:bg-white/6"
+                            )}>
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-green-500/10 text-green-500">
+                                        <Wallet className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.plan')}</div>
+                                        <div className="text-sm text-muted-foreground">{t('settings.standardPlan')}</div>
+                                    </div>
+                                </div>
+                                <div className="text-xs text-muted-foreground">{t('common.active')}</div>
                             </div>
+
                         </div>
-
-                        {/* Subscription / Plan (Placeholder) */}
-                        <div className={cn(
-                            "flex items-center justify-between p-4 rounded-[4px] last:mb-0 backdrop-blur-sm shadow-none",
-                            "bg-black/4 dark:bg-white/6"
-                        )}>
-                            <div className="flex items-center gap-4">
-                                <div className="p-2 rounded-full bg-green-500/10 text-green-500">
-                                    <Wallet className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <div className="font-medium">Plan</div>
-                                    <div className="text-sm text-muted-foreground">Standard Plan</div>
-                                </div>
-                            </div>
-                            <div className="text-xs text-muted-foreground">Active</div>
-                        </div>
-
                     </div>
-                </div>
+                )}
 
                 <div className="text-center text-xs text-muted-foreground pt-8">
                     PowerGYM v1.0.0
@@ -298,15 +371,15 @@ export function SettingsPage() {
             <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Change Login Password</DialogTitle>
+                        <DialogTitle>{t('settings.changeLoginPassword')}</DialogTitle>
                         <DialogDescription>
-                            Enter your current password to verify your identity, then create a new password.
+                            {t('auth.enterCredentials')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handlePasswordChange} className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="current-pass">Current Password</Label>
+                            <Label htmlFor="current-pass">{t('settings.currentPassword')}</Label>
                             <Input
                                 id="current-pass"
                                 type="password"
@@ -317,22 +390,22 @@ export function SettingsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="new-pass">New Password</Label>
+                            <Label htmlFor="new-pass">{t('settings.newPassword')}</Label>
                             <Input
                                 id="new-pass"
                                 type="password"
-                                placeholder="Min. 6 characters"
+                                placeholder={t('settings.passwordTooShort', { min: 6 })}
                                 value={passwordForm.new}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="confirm-pass">Confirm New Password</Label>
+                            <Label htmlFor="confirm-pass">{t('settings.confirmNewPassword')}</Label>
                             <Input
                                 id="confirm-pass"
                                 type="password"
-                                placeholder="Re-enter new password"
+                                placeholder={t('settings.confirmNewPassword')}
                                 value={passwordForm.confirm}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
                                 required
@@ -346,10 +419,10 @@ export function SettingsPage() {
                                 onClick={() => setIsPasswordDialogOpen(false)}
                                 disabled={isLoading}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? "Updating..." : "Update Password"}
+                                {isLoading ? t('settings.updating') : t('settings.updatePassword')}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -360,15 +433,15 @@ export function SettingsPage() {
             <Dialog open={isOwnerPasswordDialogOpen} onOpenChange={setIsOwnerPasswordDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Change Owner Access Password</DialogTitle>
+                        <DialogTitle>{t('settings.changeOwnerPassword')}</DialogTitle>
                         <DialogDescription>
-                            This password is used to verify sensitive actions within the owner dashboard.
+                            {t('settings.ownerAccessPasswordDesc')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleOwnerPasswordChange} className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="owner-current-pass">Current Owner Password</Label>
+                            <Label htmlFor="owner-current-pass">{t('settings.currentPassword')}</Label>
                             <Input
                                 id="owner-current-pass"
                                 type="password"
@@ -379,22 +452,22 @@ export function SettingsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="owner-new-pass">New Owner Password</Label>
+                            <Label htmlFor="owner-new-pass">{t('settings.newPassword')}</Label>
                             <Input
                                 id="owner-new-pass"
                                 type="password"
-                                placeholder="Min. 4 characters"
+                                placeholder={t('settings.passwordTooShort', { min: 4 })}
                                 value={ownerPasswordForm.new}
                                 onChange={(e) => setOwnerPasswordForm({ ...ownerPasswordForm, new: e.target.value })}
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="owner-confirm-pass">Confirm New Password</Label>
+                            <Label htmlFor="owner-confirm-pass">{t('settings.confirmNewPassword')}</Label>
                             <Input
                                 id="owner-confirm-pass"
                                 type="password"
-                                placeholder="Re-enter new password"
+                                placeholder={t('settings.confirmNewPassword')}
                                 value={ownerPasswordForm.confirm}
                                 onChange={(e) => setOwnerPasswordForm({ ...ownerPasswordForm, confirm: e.target.value })}
                                 required
@@ -408,10 +481,10 @@ export function SettingsPage() {
                                 onClick={() => setIsOwnerPasswordDialogOpen(false)}
                                 disabled={isLoading}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? "Updating..." : "Update Owner Password"}
+                                {isLoading ? t('settings.updating') : t('settings.updatePassword')}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -422,15 +495,15 @@ export function SettingsPage() {
             <Dialog open={isNameChangeDialogOpen} onOpenChange={setIsNameChangeDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Request Gym Name Change</DialogTitle>
+                        <DialogTitle>{t('settings.requestGymNameChange')}</DialogTitle>
                         <DialogDescription>
-                            Submitting this form will send a request to the Super Admin for approval.
+                            {t('settings.nameChangeRequestDesc')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleNameChangeRequest} className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="new-name">New Gym Name</Label>
+                            <Label htmlFor="new-name">{t('settings.newGymName')}</Label>
                             <Input
                                 id="new-name"
                                 placeholder="e.g. Iron Strong Gym"
@@ -440,10 +513,10 @@ export function SettingsPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="reason">Reason for Change</Label>
+                            <Label htmlFor="reason">{t('settings.reasonForChange')}</Label>
                             <Textarea
                                 id="reason"
-                                placeholder="Briefly explain why you are changing the name..."
+                                placeholder={t('settings.reasonForChange')}
                                 value={nameChangeForm.reason}
                                 onChange={(e) => setNameChangeForm({ ...nameChangeForm, reason: e.target.value })}
                                 rows={3}
@@ -457,15 +530,31 @@ export function SettingsPage() {
                                 onClick={() => setIsNameChangeDialogOpen(false)}
                                 disabled={isLoading}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={isLoading}>
-                                {isLoading ? "Submitting..." : "Submit Request"}
+                                {isLoading ? t('settings.submitting') : t('settings.submitRequest')}
                             </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Language Selection Dialog */}
+            <Dialog open={isLanguageDialogOpen} onOpenChange={setIsLanguageDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t('settings.language')}</DialogTitle>
+                        <DialogDescription>
+                            {t('settings.selectLanguage')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                        <LanguageSwitcher variant="full" onLanguageChange={() => setIsLanguageDialogOpen(false)} />
+                    </div>
+                </DialogContent>
+            </Dialog>
         </DashboardLayout>
     );
 }
+

@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     Table,
@@ -45,10 +49,13 @@ import {
     History,
     CreditCard,
     ShieldCheck,
+    ShieldAlert,
     Wallet,
     Shield,
     FileText,
-    Download
+    Download,
+    Banknote,
+    Pencil
 } from 'lucide-react';
 import { generateMemberFichePDF, generateSubscriptionPDF } from '@/utils/generatePDF';
 import { ImageCropper } from '@/components/ui/image-cropper';
@@ -56,6 +63,7 @@ import { ImageCropper } from '@/components/ui/image-cropper';
 export function MemberProfilePage() {
     const { memberId } = useParams();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const { userProfile, isOwner, isManager } = useAuth();
 
     const [member, setMember] = useState(null);
@@ -77,6 +85,27 @@ export function MemberProfilePage() {
 
     // CNI Edit Form
     const [cniIdForm, setCniIdForm] = useState('');
+
+    // Edit Member Dialog
+    const [showEditMemberDialog, setShowEditMemberDialog] = useState(false);
+    const [editMemberForm, setEditMemberForm] = useState({
+        firstName: '',
+        lastName: '',
+        phone: '',
+        email: '',
+        cniId: ''
+    });
+
+    // Add Payment Dialog
+    const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+    const [paymentForm, setPaymentForm] = useState({
+        payFullAmount: true,
+        amount: 0,
+        includeInsurance: false
+    });
+
+    const INSURANCE_FEE = 50; // Fixed insurance fee
+
 
     const fetchMemberData = async () => {
         try {
@@ -285,6 +314,117 @@ export function MemberProfilePage() {
         setShowEditCNIDialog(true);
     };
 
+    // Open Edit Member Dialog
+    const openEditMemberDialog = () => {
+        setEditMemberForm({
+            firstName: member.firstName || '',
+            lastName: member.lastName || '',
+            phone: member.phone || '',
+            email: member.email || '',
+            cniId: member.cniId || ''
+        });
+        setShowEditMemberDialog(true);
+    };
+
+    // Handle Update Member
+    const handleUpdateMember = async (e) => {
+        e.preventDefault();
+        try {
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+            await updateDoc(memberRef, {
+                firstName: editMemberForm.firstName,
+                lastName: editMemberForm.lastName,
+                phone: editMemberForm.phone,
+                email: editMemberForm.email,
+                cniId: editMemberForm.cniId
+            });
+            toast.success(t('members.memberUpdated'));
+            setShowEditMemberDialog(false);
+            fetchMemberData();
+        } catch (error) {
+            console.error('Error updating member:', error);
+            toast.error('Failed to update member');
+        }
+    };
+
+    // Open Payment Dialog
+    const openPaymentDialog = () => {
+        setPaymentForm({
+            payFullAmount: true,
+            amount: member.outstandingBalance || 0,
+            includeInsurance: false
+        });
+        setShowPaymentDialog(true);
+    };
+
+    // Calculate payment amounts
+    const calculatePaymentAmounts = () => {
+        const outstandingDebt = member.outstandingBalance || 0;
+        const paymentAmount = paymentForm.payFullAmount ? outstandingDebt : Number(paymentForm.amount) || 0;
+        const insuranceAmount = paymentForm.includeInsurance && member.insuranceStatus !== 'active' ? INSURANCE_FEE : 0;
+        const totalPayment = paymentAmount + insuranceAmount;
+        const remainingDebt = Math.max(0, outstandingDebt - paymentAmount);
+
+        return { outstandingDebt, paymentAmount, insuranceAmount, totalPayment, remainingDebt };
+    };
+
+    // Handle Record Payment
+    const handleRecordPayment = async (e) => {
+        e.preventDefault();
+        try {
+            const { paymentAmount, insuranceAmount, totalPayment, remainingDebt } = calculatePaymentAmounts();
+
+            if (paymentAmount <= 0 && insuranceAmount <= 0) {
+                toast.error('Please enter a valid payment amount');
+                return;
+            }
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+
+            // Create payment records
+            const newPayments = [...(member.payments || [])];
+
+            if (paymentAmount > 0) {
+                newPayments.push({
+                    amount: paymentAmount,
+                    type: 'DEBT_PAYMENT',
+                    note: `Debt Payment (${paymentAmount} MAD)`,
+                    dateTime: new Date().toISOString()
+                });
+            }
+
+            if (insuranceAmount > 0) {
+                newPayments.push({
+                    amount: insuranceAmount,
+                    type: 'INSURANCE_PAYMENT',
+                    note: `Insurance Payment (${insuranceAmount} MAD)`,
+                    dateTime: new Date().toISOString()
+                });
+            }
+
+            const updateData = {
+                totalPaid: (member.totalPaid || 0) + totalPayment,
+                outstandingBalance: remainingDebt,
+                payments: newPayments
+            };
+
+            // Update insurance status if included
+            if (paymentForm.includeInsurance && member.insuranceStatus !== 'active') {
+                updateData.insuranceStatus = 'active';
+            }
+
+            await updateDoc(memberRef, updateData);
+
+            toast.success(t('members.paymentRecorded') || 'Payment recorded successfully');
+            setShowPaymentDialog(false);
+            fetchMemberData();
+        } catch (error) {
+            console.error('Error recording payment:', error);
+            toast.error('Failed to record payment');
+        }
+    };
+
+
     if (loading) {
         return (
             <DashboardLayout>
@@ -315,13 +455,13 @@ export function MemberProfilePage() {
     // const totalPaid = member.payments?.reduce((sum, p) => sum + Number(p.amount), 0) || member.totalPaid || 0; 
 
     return (
-        <DashboardLayout>
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/members')}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Members
-                    </Button>
+        <DashboardLayout hideNav>
+            <div className="max-w-6xl mx-auto py-6 px-4 space-y-6">
+                <PageHeader
+                    title={`${member.firstName} ${member.lastName}`}
+                    backTo="/members"
+                    backLabel={t('members.backToMembers')}
+                >
                     {isOwner() && (
                         <Button
                             variant="outline"
@@ -329,34 +469,38 @@ export function MemberProfilePage() {
                             onClick={() => generateMemberFichePDF(member, userProfile?.gymName)}
                         >
                             <Download className="h-4 w-4 mr-2" />
-                            Download Fiche Technique
+                            {t('members.downloadFicheMembre')}
                         </Button>
                     )}
-                </div>
+                </PageHeader>
 
                 <div className="grid gap-6 md:grid-cols-2">
                     {/* Member Profile Details */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-lg font-medium">Member Profile</CardTitle>
-                            <User className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-lg font-medium">{t('members.memberProfile')}</CardTitle>
+                            {(isOwner() || isManager()) && (
+                                <Button variant="ghost" size="sm" onClick={openEditMemberDialog}>
+                                    <Pencil className="h-4 w-4" />
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div>
-                                    <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                                    <p className="text-sm font-medium text-muted-foreground">{t('members.fullName')}</p>
                                     <p className="text-xl font-bold">{member.firstName} {member.lastName}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t('members.phone')}</p>
                                         <div className="flex items-center gap-2">
                                             <Phone className="h-3 w-3" />
                                             <span>{member.phone}</span>
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">Email</p>
+                                        <p className="text-sm font-medium text-muted-foreground">{t('members.email')}</p>
                                         <div className="flex items-center gap-2">
                                             <Mail className="h-3 w-3" />
                                             <span className="truncate max-w-[150px]">{member.email || '-'}</span>
@@ -364,9 +508,9 @@ export function MemberProfilePage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <p className="text-sm font-medium text-muted-foreground mb-1">CNI ID</p>
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">{t('members.cniId')}</p>
                                     <div className="flex items-center justify-between bg-muted/30 p-2 rounded-md border">
-                                        <span className="font-mono font-medium">{member.cniId || 'Not Set'}</span>
+                                        <span className="font-mono font-medium">{member.cniId || t('common.notSet')}</span>
                                         {isOwner() && (
                                             <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={openEditCNIDialog}>
                                                 <Edit className="h-3 w-3" />
@@ -381,37 +525,47 @@ export function MemberProfilePage() {
                     {/* Financial Overview */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-lg font-medium">Financial Overview</CardTitle>
-                            <Wallet className="h-4 w-4 text-muted-foreground" />
+                            <CardTitle className="text-lg font-medium">{t('members.financialOverview')}</CardTitle>
+                            {isOwner() && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={openPaymentDialog}
+                                    disabled={(member.outstandingBalance || 0) <= 0}
+                                >
+                                    <Banknote className="h-4 w-4 mr-1" />
+                                    {t('members.recordPayment')}
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center border-b pb-2">
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Current Plan</p>
-                                        <p className="font-semibold">{currentPlan?.name || 'N/A'}</p>
+                                        <p className="text-sm text-muted-foreground">{t('members.currentPlan')}</p>
+                                        <p className="font-semibold">{currentPlan?.name || t('common.notAvailable')}</p>
                                     </div>
                                     {status === 'active' ? (
                                         <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1 text-sm">
-                                            Active Member
+                                            {t('members.activeMember')}
                                         </Badge>
                                     ) : status === 'expiring' ? (
                                         <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-0 px-3 py-1 text-sm">
-                                            Expiring Soon
+                                            {t('members.expiringSoon')}
                                         </Badge>
                                     ) : (
                                         <Badge variant="destructive" className="px-3 py-1 text-sm">
-                                            Expired
+                                            {t('members.expired')}
                                         </Badge>
                                     )}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Total Paid (Lifetime)</p>
+                                        <p className="text-sm text-muted-foreground">{t('members.totalPaidLifetime')}</p>
                                         <p className="font-bold text-green-600 text-lg">{member.totalPaid || 0} MAD</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Outstanding Debt</p>
+                                        <p className="text-sm text-muted-foreground">{t('members.outstandingDebt')}</p>
                                         <div className="flex items-center gap-1">
                                             <p className={`font-bold text-lg ${member.outstandingBalance > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                                                 {member.outstandingBalance || 0} MAD
@@ -420,21 +574,21 @@ export function MemberProfilePage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Insurance Status</p>
+                                        <p className="text-sm text-muted-foreground">{t('members.insuranceStatus')}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             {member.insuranceStatus === 'active' ? (
                                                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
-                                                    <Shield className="h-4 w-4" /> Paid
+                                                    <Shield className="h-4 w-4" /> {t('members.paid')}
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm font-medium animate-pulse">
-                                                    <ShieldAlert className="h-4 w-4" /> Unpaid
+                                                    <ShieldAlert className="h-4 w-4" /> {t('members.unpaid')}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-muted-foreground">Total Insurance Paid</p>
+                                        <p className="text-sm text-muted-foreground">{t('members.totalInsurancePaid')}</p>
                                         {/* Assuming 50 per year/activation? Just showing total logic for now */}
                                         <p className="font-medium">{totalInsurancePaid > 0 ? `${totalInsurancePaid} MAD` : '-'}</p>
                                     </div>
@@ -449,20 +603,20 @@ export function MemberProfilePage() {
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div className="flex items-center gap-2">
                             <CreditCard className="h-5 w-5 text-primary" />
-                            <CardTitle>Member CNI Document</CardTitle>
+                            <CardTitle>{t('members.memberCniDocument')}</CardTitle>
                         </div>
                         {(isOwner() || isManager()) && member.cniDocumentUrl ? (
                             <div className="flex gap-2">
                                 <Button variant="destructive" size="sm" onClick={handleDeleteCNI} disabled={uploading}>
-                                    <X className="h-4 w-4 mr-1" /> Delete
+                                    <X className="h-4 w-4 mr-1" /> {t('common.delete')}
                                 </Button>
                                 <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
-                                    <Upload className="mr-2 h-4 w-4" /> Update
+                                    <Upload className="mr-2 h-4 w-4" /> {t('common.update')}
                                 </Button>
                             </div>
                         ) : (isOwner() || isManager()) && (
                             <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
-                                <Upload className="mr-2 h-4 w-4" /> Upload Document
+                                <Upload className="mr-2 h-4 w-4" /> {t('members.uploadDocument')}
                             </Button>
                         )}
                     </CardHeader>
@@ -482,7 +636,7 @@ export function MemberProfilePage() {
                                     />
                                     <div className="mt-4 flex flex-col md:flex-row gap-3 w-full max-w-md">
                                         <Button className="w-full flex-1" variant="secondary" onClick={() => window.open(member.cniDocumentUrl, '_blank')}>
-                                            <FileText className="mr-2 h-4 w-4" /> View Full Document
+                                            <FileText className="mr-2 h-4 w-4" /> {t('members.viewFullDocument')}
                                         </Button>
 
                                         {isOwner() && (
@@ -508,7 +662,7 @@ export function MemberProfilePage() {
                                                     window.open(member.cniDocumentUrl, '_blank');
                                                 }
                                             }}>
-                                                <Upload className="mr-2 h-4 w-4 rotate-180" /> Download
+                                                <Upload className="mr-2 h-4 w-4 rotate-180" /> {t('common.download')}
                                             </Button>
                                         )}
                                     </div>
@@ -517,9 +671,9 @@ export function MemberProfilePage() {
                         ) : (
                             <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl bg-muted/5">
                                 <CreditCard className="h-16 w-16 mx-auto mb-4 opacity-20" />
-                                <p className="text-lg font-medium">No CNI document uploaded</p>
-                                <p className="text-sm opacity-70 mb-6">Upload a clear photo or scan of the member's ID card.</p>
-                                {isOwner() && <Button onClick={() => setShowUploadDialog(true)}>Upload Now</Button>}
+                                <p className="text-lg font-medium">{t('members.noCniDocument')}</p>
+                                <p className="text-sm opacity-70 mb-6">{t('members.uploadCniHint')}</p>
+                                {isOwner() && <Button onClick={() => setShowUploadDialog(true)}>{t('members.uploadNow')}</Button>}
                             </div>
                         )}
                     </CardContent>
@@ -530,12 +684,12 @@ export function MemberProfilePage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
-                            <CardTitle>Subscription History</CardTitle>
-                            <CardDescription>Manage member subscriptions</CardDescription>
+                            <CardTitle>{t('members.subscriptionHistory')}</CardTitle>
+                            <CardDescription>{t('members.manageSubscriptions')}</CardDescription>
                         </div>
                         {isOwner() && (
                             <Button onClick={() => setShowSubscriptionDialog(true)} size="sm">
-                                <Plus className="mr-2 h-4 w-4" /> Add Subscription
+                                <Plus className="mr-2 h-4 w-4" /> {t('members.addSubscription')}
                             </Button>
                         )}
                     </CardHeader>
@@ -543,12 +697,12 @@ export function MemberProfilePage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Plan</TableHead>
-                                    <TableHead>Start Date</TableHead>
-                                    <TableHead>End Date</TableHead>
-                                    <TableHead>Duration</TableHead>
-                                    <TableHead>Price</TableHead>
-                                    {isOwner() && <TableHead className="text-right">Actions</TableHead>}
+                                    <TableHead>{t('plans.plan')}</TableHead>
+                                    <TableHead>{t('members.startDate')}</TableHead>
+                                    <TableHead>{t('members.endDate')}</TableHead>
+                                    <TableHead>{t('plans.duration')}</TableHead>
+                                    <TableHead>{t('plans.price')}</TableHead>
+                                    {isOwner() && <TableHead className="text-right">{t('common.actions')}</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -558,7 +712,7 @@ export function MemberProfilePage() {
                                         <TableCell>{new Date(sub.startDate).toLocaleDateString()}</TableCell>
                                         <TableCell>{new Date(sub.endDate).toLocaleDateString()}</TableCell>
                                         <TableCell>
-                                            {Math.ceil((new Date(sub.endDate) - new Date(sub.startDate)) / (1000 * 60 * 60 * 24))} days
+                                            {Math.ceil((new Date(sub.endDate) - new Date(sub.startDate)) / (1000 * 60 * 60 * 24))} {t('time.days')}
                                         </TableCell>
                                         <TableCell>{sub.price} MAD</TableCell>
                                         {isOwner() && (
@@ -577,7 +731,7 @@ export function MemberProfilePage() {
                                 ))}
                                 {(!member.subscriptionHistory || member.subscriptionHistory.length === 0) && (
                                     <TableRow>
-                                        <TableCell colSpan={isOwner() ? 6 : 5} className="text-center text-muted-foreground">No subscription history</TableCell>
+                                        <TableCell colSpan={isOwner() ? 6 : 5} className="text-center text-muted-foreground">{t('members.noSubscriptionHistory')}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -588,16 +742,16 @@ export function MemberProfilePage() {
                 {/* Payment History */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Payment History</CardTitle>
+                        <CardTitle>{t('members.paymentHistory')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date & Time</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Amount</TableHead>
-                                    <TableHead>Note</TableHead>
+                                    <TableHead>{t('members.dateTime')}</TableHead>
+                                    <TableHead>{t('members.type')}</TableHead>
+                                    <TableHead>{t('members.amount')}</TableHead>
+                                    <TableHead>{t('members.note')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -622,7 +776,7 @@ export function MemberProfilePage() {
                                 ))}
                                 {(!member.payments || member.payments.length === 0) && (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center text-muted-foreground">No payments recorded</TableCell>
+                                        <TableCell colSpan={4} className="text-center text-muted-foreground">{t('members.noPayments')}</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -634,7 +788,7 @@ export function MemberProfilePage() {
                 {(member.warnings?.length || 0) > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>Warnings</CardTitle>
+                            <CardTitle>{t('warnings.title')}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
@@ -644,7 +798,7 @@ export function MemberProfilePage() {
                                         <div className="flex-1">
                                             <p className="text-sm font-medium text-destructive">{warning.message}</p>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                {new Date(warning.dateTime || warning.date).toLocaleDateString()} {new Date(warning.dateTime || warning.date).toLocaleTimeString()} - Added by {warning.addedBy}
+                                                {new Date(warning.dateTime || warning.date).toLocaleDateString()} {new Date(warning.dateTime || warning.date).toLocaleTimeString()} - {t('members.addedBy')} {warning.addedBy}
                                             </p>
                                         </div>
                                     </div>
@@ -659,33 +813,33 @@ export function MemberProfilePage() {
             <Dialog open={showSubscriptionDialog} onOpenChange={setShowSubscriptionDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add New Subscription</DialogTitle>
-                        <DialogDescription>Add a new subscription plan to this member.</DialogDescription>
+                        <DialogTitle>{t('members.addNewSubscription')}</DialogTitle>
+                        <DialogDescription>{t('members.addSubscriptionDesc')}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddSubscription}>
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label>Plan</Label>
+                                <Label>{t('plans.plan')}</Label>
                                 <Select value={subForm.planId} onValueChange={(v) => setSubForm({ ...subForm, planId: v })} required>
-                                    <SelectTrigger><SelectValue placeholder="Select a plan" /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder={t('members.selectPlan')} /></SelectTrigger>
                                     <SelectContent>
                                         {plans.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration} days) - {p.price} MAD</SelectItem>
+                                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration} {t('time.days')}) - {p.price} MAD</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label>Start Date</Label>
+                                <Label>{t('members.startDate')}</Label>
                                 <Input type="date" value={subForm.startDate} onChange={(e) => setSubForm({ ...subForm, startDate: e.target.value })} required />
                             </div>
                             <div className="bg-muted p-3 rounded text-xs text-muted-foreground">
-                                <p>This will update the member's current plan and add the price to their outstanding balance.</p>
+                                <p>{t('members.subscriptionNote')}</p>
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" type="button" onClick={() => setShowSubscriptionDialog(false)}>Cancel</Button>
-                            <Button type="submit">Add Subscription</Button>
+                            <Button variant="outline" type="button" onClick={() => setShowSubscriptionDialog(false)}>{t('common.cancel')}</Button>
+                            <Button type="submit">{t('members.addSubscription')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -695,18 +849,18 @@ export function MemberProfilePage() {
             <Dialog open={showEditCNIDialog} onOpenChange={setShowEditCNIDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit CNI ID</DialogTitle>
+                        <DialogTitle>{t('members.editCniId')}</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleUpdateCNIId}>
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label>CNI ID Number</Label>
+                                <Label>{t('members.cniIdNumber')}</Label>
                                 <Input value={cniIdForm} onChange={(e) => setCniIdForm(e.target.value)} placeholder="AB123456" />
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" type="button" onClick={() => setShowEditCNIDialog(false)}>Cancel</Button>
-                            <Button type="submit">Update</Button>
+                            <Button variant="outline" type="button" onClick={() => setShowEditCNIDialog(false)}>{t('common.cancel')}</Button>
+                            <Button type="submit">{t('common.update')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -720,9 +874,9 @@ export function MemberProfilePage() {
             }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Upload CNI Document</DialogTitle>
+                        <DialogTitle>{t('members.uploadCniDocument')}</DialogTitle>
                         <DialogDescription>
-                            Select a method to upload the member's ID card
+                            {t('members.uploadCniMethod')}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -782,7 +936,7 @@ export function MemberProfilePage() {
                                 <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600 dark:text-blue-400">
                                     <Upload className="h-6 w-6" />
                                 </div>
-                                <span className="font-medium">Upload from Gallery</span>
+                                <span className="font-medium">{t('members.uploadFromGallery')}</span>
                             </div>
 
                             <div
@@ -792,7 +946,7 @@ export function MemberProfilePage() {
                                 <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-600 dark:text-purple-400">
                                     <Camera className="h-6 w-6" />
                                 </div>
-                                <span className="font-medium">Take Picture</span>
+                                <span className="font-medium">{t('members.takePhoto')}</span>
                             </div>
                         </div>
                     ) : (
@@ -820,13 +974,13 @@ export function MemberProfilePage() {
                                 </Button>
                             </div>
                             <div className="text-center text-sm text-muted-foreground">
-                                Ready to upload <span className="font-semibold text-foreground">{uploadFile.name}</span>
+                                {t('members.readyToUpload')} <span className="font-semibold text-foreground">{uploadFile.name}</span>
                             </div>
                         </div>
                     )}
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setShowUploadDialog(false)}>{t('common.cancel')}</Button>
                         <Button
                             onClick={handleCNIUpload}
                             disabled={!uploadFile || uploading}
@@ -835,13 +989,210 @@ export function MemberProfilePage() {
                             {uploading ? (
                                 <>
                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                    Uploading...
+                                    {t('members.uploading')}
                                 </>
                             ) : (
-                                'Confirm Upload'
+                                t('members.confirmUpload')
                             )}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Member Dialog */}
+            <Dialog open={showEditMemberDialog} onOpenChange={setShowEditMemberDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('members.editMember')}</DialogTitle>
+                        <DialogDescription>{t('members.editMemberDesc') || 'Update member information'}</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleUpdateMember}>
+                        <div className="space-y-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>{t('members.firstName')}</Label>
+                                    <Input
+                                        value={editMemberForm.firstName}
+                                        onChange={(e) => setEditMemberForm({ ...editMemberForm, firstName: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>{t('members.lastName')}</Label>
+                                    <Input
+                                        value={editMemberForm.lastName}
+                                        onChange={(e) => setEditMemberForm({ ...editMemberForm, lastName: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t('members.phone')}</Label>
+                                <Input
+                                    value={editMemberForm.phone}
+                                    onChange={(e) => setEditMemberForm({ ...editMemberForm, phone: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t('members.email')}</Label>
+                                <Input
+                                    type="email"
+                                    value={editMemberForm.email}
+                                    onChange={(e) => setEditMemberForm({ ...editMemberForm, email: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>{t('members.cniId')}</Label>
+                                <Input
+                                    value={editMemberForm.cniId}
+                                    onChange={(e) => setEditMemberForm({ ...editMemberForm, cniId: e.target.value })}
+                                    placeholder="AB123456"
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" type="button" onClick={() => setShowEditMemberDialog(false)}>{t('common.cancel')}</Button>
+                            <Button type="submit">{t('common.save')}</Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Payment Dialog */}
+            <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t('members.recordPayment')}</DialogTitle>
+                        <DialogDescription>{t('members.recordPaymentDesc') || 'Record a payment for this member'}</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleRecordPayment}>
+                        <div className="space-y-4 py-4">
+                            {/* Current Plan Display (Disabled) */}
+                            <div className="space-y-2">
+                                <Label>{t('members.currentPlan')}</Label>
+                                <Input
+                                    value={currentPlan?.name || t('common.notAvailable')}
+                                    disabled
+                                    className="bg-muted"
+                                />
+                            </div>
+
+                            {/* Payment Mode Switch */}
+                            <div
+                                className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => setPaymentForm({
+                                    ...paymentForm,
+                                    payFullAmount: !paymentForm.payFullAmount,
+                                    amount: !paymentForm.payFullAmount ? member.outstandingBalance : 0
+                                })}
+                            >
+                                <div>
+                                    <p className="font-medium">{t('members.paymentMode') || 'Payment Mode'}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {paymentForm.payFullAmount ? t('plans.fullPayment') : t('plans.partialPayment')}
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={paymentForm.payFullAmount}
+                                    onCheckedChange={(checked) => setPaymentForm({
+                                        ...paymentForm,
+                                        payFullAmount: checked,
+                                        amount: checked ? member.outstandingBalance : 0
+                                    })}
+                                />
+                            </div>
+
+                            {/* Amount Input (only when partial) */}
+                            {!paymentForm.payFullAmount && (
+                                <div className="space-y-2">
+                                    <Label>{t('members.amountToPay') || 'Amount to Pay'} (MAD) *</Label>
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        max={member.outstandingBalance || 0}
+                                        value={paymentForm.amount}
+                                        onChange={(e) => setPaymentForm({
+                                            ...paymentForm,
+                                            amount: Math.min(Number(e.target.value), member.outstandingBalance || 0)
+                                        })}
+                                        placeholder={t('plans.amountPaid')}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Insurance Section (Separate) */}
+                            <div className="border-t pt-4">
+                                <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <Checkbox
+                                            id="include-insurance"
+                                            checked={paymentForm.includeInsurance || member.insuranceStatus === 'active'}
+                                            disabled={member.insuranceStatus === 'active'}
+                                            onCheckedChange={(checked) => setPaymentForm({ ...paymentForm, includeInsurance: checked })}
+                                        />
+                                        <div>
+                                            <Label htmlFor="include-insurance" className="cursor-pointer">
+                                                {t('plans.includeInsurance')}
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                {member.insuranceStatus === 'active'
+                                                    ? t('members.insuranceAlreadyPaid') || 'Already paid'
+                                                    : `${INSURANCE_FEE} MAD`
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {member.insuranceStatus === 'active' && (
+                                        <Badge className="bg-emerald-500 text-white">{t('members.paid')}</Badge>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Real-time Calculator */}
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-2 border">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">{t('members.debtBeforePayment') || 'Outstanding Debt'}:</span>
+                                    <span className="font-medium text-destructive">{member.outstandingBalance || 0} MAD</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">{t('members.amountPaying') || 'Amount Paying'}:</span>
+                                    <span className="font-medium text-green-600">
+                                        {paymentForm.payFullAmount ? member.outstandingBalance : paymentForm.amount} MAD
+                                    </span>
+                                </div>
+                                {paymentForm.includeInsurance && member.insuranceStatus !== 'active' && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">{t('plans.insurance')}:</span>
+                                        <span className="font-medium">{INSURANCE_FEE} MAD</span>
+                                    </div>
+                                )}
+                                <div className="border-t pt-2 flex justify-between font-medium">
+                                    <span>{t('plans.totalAmount')}:</span>
+                                    <span className="text-primary">
+                                        {(() => {
+                                            const { totalPayment } = calculatePaymentAmounts();
+                                            return `${totalPayment} MAD`;
+                                        })()}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm pt-1">
+                                    <span className="text-muted-foreground">{t('members.debtAfterPayment') || 'Remaining Debt'}:</span>
+                                    <span className={`font-medium ${calculatePaymentAmounts().remainingDebt > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                        {calculatePaymentAmounts().remainingDebt} MAD
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" type="button" onClick={() => setShowPaymentDialog(false)}>{t('common.cancel')}</Button>
+                            <Button
+                                type="submit"
+                                disabled={calculatePaymentAmounts().totalPayment <= 0}
+                            >
+                                {t('members.recordPayment')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
 

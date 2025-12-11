@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,6 +64,7 @@ export function MembersPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { userProfile, isOwner, isManager } = useAuth();
+    const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -183,28 +185,38 @@ export function MembersPage() {
 
         const matchesPlan = planFilter === 'all' || member.currentSubscription?.planId === planFilter;
 
-        // URL Params Filters
+        // Payment filter logic
+        const outstanding = member.outstandingBalance || 0;
+        let matchesPayment = true;
+        if (paymentFilter === 'paid') {
+            matchesPayment = outstanding <= 0;
+        } else if (paymentFilter === 'outstanding') {
+            matchesPayment = outstanding > 0;
+        }
+
+        // Insurance filter logic
+        let matchesInsurance = true;
+        if (insuranceFilter === 'paid') {
+            matchesInsurance = member.insuranceStatus === 'active';
+        } else if (insuranceFilter === 'unpaid') {
+            matchesInsurance = member.insuranceStatus !== 'active';
+        }
+
+        // URL Params Filters (for dashboard links)
         const paymentParam = searchParams.get('payment');
         const insuranceParam = searchParams.get('insurance');
-        const statusParam = searchParams.get('status');
 
         let matchesUrlFilters = true;
 
         if (paymentParam === 'outstanding') {
-            if ((member.outstandingBalance || 0) <= 0) matchesUrlFilters = false;
+            if (outstanding <= 0) matchesUrlFilters = false;
         }
 
         if (insuranceParam === 'unpaid') {
             if (member.insuranceStatus === 'active') matchesUrlFilters = false;
         }
 
-        // If status param is present, it overrides the dropdown or syncs with it
-        // The dropdown (statusFilter) catches the initial Sync in useEffect, but let's double check logic
-        // Actually, we should rely on statusFilter being set by useEffect on mount, 
-        // OR we can check directly here if we want instant URL reaction without state sync lag.
-        // For simplicity, let's assume useEffect handles the 'status' param -> setStatusFilter mapping.
-
-        return matchesSearch && matchesStatus && matchesPlan && matchesUrlFilters;
+        return matchesSearch && matchesStatus && matchesPlan && matchesPayment && matchesInsurance && matchesUrlFilters;
     }).sort((a, b) => {
         if (sortOption === 'newest') {
             // Newest first (highest memberId or createdAt)
@@ -577,15 +589,15 @@ export function MembersPage() {
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">Member Management</h2>
+                        <h2 className="text-3xl font-bold tracking-tight">{t('members.title')}</h2>
                         <p className="text-muted-foreground">
-                            Manage all {filteredMembers.length} members
+                            {t('members.manageMembers', { count: filteredMembers.length })}
                         </p>
                     </div>
                     {isOwner() && (
                         <Button onClick={() => navigate('/members/add')} size="lg">
                             <Plus className="mr-2 h-4 w-4" />
-                            Add New Member
+                            {t('members.addNewMember')}
                         </Button>
                     )}
                 </div>
@@ -595,33 +607,33 @@ export function MembersPage() {
                     <CardContent className="p-4">
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
                             <div className="relative col-span-2 lg:col-span-2">
-                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground rtl:left-auto rtl:right-3" />
                                 <Input
-                                    placeholder="Search by Name, Phone, ID..."
+                                    placeholder={t('members.searchPlaceholder')}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 rtl:pl-3 rtl:pr-10"
                                 />
                             </div>
 
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Status" />
+                                    <SelectValue placeholder={t('common.status')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="active">Active</SelectItem>
-                                    <SelectItem value="expiring">Expiring Soon</SelectItem>
-                                    <SelectItem value="expired">Expired</SelectItem>
+                                    <SelectItem value="all">{t('members.allStatuses')}</SelectItem>
+                                    <SelectItem value="active">{t('common.active')}</SelectItem>
+                                    <SelectItem value="expiring">{t('members.expiringSoon')}</SelectItem>
+                                    <SelectItem value="expired">{t('members.expired')}</SelectItem>
                                 </SelectContent>
                             </Select>
 
                             <Select value={planFilter} onValueChange={setPlanFilter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Plan" />
+                                    <SelectValue placeholder={t('plans.plan')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Plans</SelectItem>
+                                    <SelectItem value="all">{t('members.allPlans')}</SelectItem>
                                     {plans.map(plan => (
                                         <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
                                     ))}
@@ -630,23 +642,23 @@ export function MembersPage() {
 
                             <Select value={paymentFilter} onValueChange={setPaymentFilter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Payment" />
+                                    <SelectValue placeholder={t('members.payment')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Any Payment</SelectItem>
-                                    <SelectItem value="paid">Fully Paid</SelectItem>
-                                    <SelectItem value="outstanding">Outstanding</SelectItem>
+                                    <SelectItem value="all">{t('members.anyPayment')}</SelectItem>
+                                    <SelectItem value="paid">{t('members.fullyPaid')}</SelectItem>
+                                    <SelectItem value="outstanding">{t('members.outstanding')}</SelectItem>
                                 </SelectContent>
                             </Select>
 
                             <Select value={insuranceFilter} onValueChange={setInsuranceFilter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Insurance" />
+                                    <SelectValue placeholder={t('plans.insurance')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Any Insurance</SelectItem>
-                                    <SelectItem value="paid">Paid</SelectItem>
-                                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                                    <SelectItem value="all">{t('members.anyInsurance')}</SelectItem>
+                                    <SelectItem value="paid">{t('members.paid')}</SelectItem>
+                                    <SelectItem value="unpaid">{t('members.unpaid')}</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -654,18 +666,18 @@ export function MembersPage() {
                                 <Select value={sortOption} onValueChange={setSortOption}>
                                     <SelectTrigger className="w-[180px]">
                                         <ArrowUpDown className="mr-2 h-4 w-4" />
-                                        <SelectValue placeholder="Sort By" />
+                                        <SelectValue placeholder={t('members.sortBy')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="newest">Newest First</SelectItem>
-                                        <SelectItem value="oldest">Oldest First</SelectItem>
-                                        <SelectItem value="highest_outstanding">Highest Debt</SelectItem>
+                                        <SelectItem value="newest">{t('members.newestFirst')}</SelectItem>
+                                        <SelectItem value="oldest">{t('members.oldestFirst')}</SelectItem>
+                                        <SelectItem value="highest_outstanding">{t('members.highestDebt')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 {isOwner() && (
                                     <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
                                         <Download className="mr-2 h-4 w-4" />
-                                        Export Excel
+                                        {t('members.exportExcel')}
                                     </Button>
                                 )}
                             </div>
@@ -676,22 +688,22 @@ export function MembersPage() {
                 {/* Members Table */}
                 <Card>
                     <CardHeader className="py-4">
-                        <CardTitle className="text-lg">Members List</CardTitle>
+                        <CardTitle className="text-lg">{t('members.membersList')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[80px]">ID</TableHead>
-                                    <TableHead>Member</TableHead>
-                                    <TableHead>Plan</TableHead>
-                                    <TableHead>Payment</TableHead>
-                                    <TableHead className="text-center">Insurance</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Start Date</TableHead>
-                                    <TableHead>End Date</TableHead>
-                                    <TableHead className="text-center">Warnings</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead>{t('members.member')}</TableHead>
+                                    <TableHead>{t('plans.plan')}</TableHead>
+                                    <TableHead>{t('members.payment')}</TableHead>
+                                    <TableHead className="text-center rtl:text-center">{t('plans.insurance')}</TableHead>
+                                    <TableHead>{t('common.status')}</TableHead>
+                                    <TableHead>{t('members.startDate')}</TableHead>
+                                    <TableHead>{t('members.endDate')}</TableHead>
+                                    <TableHead className="text-center rtl:text-center">{t('warnings.title')}</TableHead>
+                                    <TableHead className="text-right rtl:text-left">{t('common.actions')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -724,31 +736,31 @@ export function MembersPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline" className="font-normal border-slate-200 dark:border-slate-700">
-                                                        {plan?.name || 'No Plan'}
+                                                        {plan?.name || t('members.noPlan')}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
                                                     {outstanding > 0 ? (
                                                         <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50/50 dark:border-amber-700 dark:text-amber-400 dark:bg-amber-900/20">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
-                                                            {outstanding} MAD Due
+                                                            {outstanding} MAD {t('members.due')}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                                                            Paid
+                                                            {t('members.paid')}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     {insurancePaid ? (
-                                                        <div className="flex justify-center" title="Insurance Paid">
+                                                        <div className="flex justify-center" title={t('members.insurancePaid')}>
                                                             <div className="p-1.5 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                                                                 <Shield className="h-3.5 w-3.5" />
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex justify-center" title="Insurance Unpaid">
+                                                        <div className="flex justify-center" title={t('members.insuranceUnpaid')}>
                                                             <div className="p-1.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800">
                                                                 <ShieldAlert className="h-3.5 w-3.5" />
                                                             </div>
@@ -759,17 +771,17 @@ export function MembersPage() {
                                                     {status === 'active' ? (
                                                         <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                                                            Active
+                                                            {t('members.activeMember')}
                                                         </Badge>
                                                     ) : status === 'expiring' ? (
                                                         <Badge variant="outline" className="border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
-                                                            Expiring
+                                                            {t('members.expiringSoon')}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="border-red-300 text-red-700 dark:border-red-700 dark:text-red-400">
                                                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
-                                                            Expired
+                                                            {t('members.expired')}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
@@ -820,14 +832,14 @@ export function MembersPage() {
                                                                     className="text-amber-600 dark:text-amber-400 focus:text-amber-700 dark:focus:text-amber-300"
                                                                 >
                                                                     <AlertTriangle className="mr-2 h-4 w-4 text-amber-600 dark:text-amber-400" />
-                                                                    Add Warning
+                                                                    {t('warnings.addWarning')}
                                                                 </DropdownMenuItem>
                                                             )}
                                                             {isOwner() && (
                                                                 <>
                                                                     <DropdownMenuItem onClick={() => openEditDialog(member)}>
                                                                         <Edit className="mr-2 h-4 w-4" />
-                                                                        Edit Member
+                                                                        {t('members.editMember')}
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuItem
                                                                         onClick={() => openPaymentDialog(member)}
@@ -835,14 +847,14 @@ export function MembersPage() {
                                                                         className={outstanding <= 0 && member.insuranceStatus === 'active' ? "opacity-50 cursor-not-allowed" : ""}
                                                                     >
                                                                         <DollarSign className="mr-2 h-4 w-4" />
-                                                                        Add Payment
+                                                                        {t('members.addPayment')}
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuItem
                                                                         onClick={() => openDeleteDialog(member)}
                                                                         className="text-red-500 dark:text-red-400 focus:text-red-600 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-950"
                                                                     >
                                                                         <Trash2 className="mr-2 h-4 w-4 text-red-500 dark:text-red-400" />
-                                                                        Delete
+                                                                        {t('common.delete')}
                                                                     </DropdownMenuItem>
                                                                 </>
                                                             )}
@@ -860,7 +872,7 @@ export function MembersPage() {
                     {filteredMembers.length > 0 && (
                         <div className="flex items-center justify-between px-4 py-3 border-t">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
-                                <span>Show</span>
+                                <span>{t('common.show')}</span>
                                 <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
                                     <SelectTrigger className="w-[65px] h-8">
                                         <SelectValue />
@@ -872,7 +884,7 @@ export function MembersPage() {
                                         <SelectItem value="50">50</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                <span className="whitespace-nowrap">of {filteredMembers.length} members</span>
+                                <span className="whitespace-nowrap">{t('common.ofCount', { count: filteredMembers.length })} {t('members.members')}</span>
                             </div>
 
                             <Pagination>

@@ -100,6 +100,19 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* RTL Support for Arabic */
+  html[dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+  }
+
+  /* RTL Table alignment */
+  html[dir="rtl"] th,
+  html[dir="rtl"] td {
+    text-align: right;
   }
 }
 

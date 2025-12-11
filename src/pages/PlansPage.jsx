@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ import { DollarSign, Plus, Edit, Trash2, MoreVertical } from 'lucide-react';
 
 export function PlansPage() {
     const { userProfile } = useAuth();
+    const { t } = useTranslation();
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddDialog, setShowAddDialog] = useState(false);
@@ -204,7 +206,7 @@ export function PlansPage() {
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
                     </div>
                 </div>
             </DashboardLayout>
@@ -218,43 +220,43 @@ export function PlansPage() {
                     <div className="flex items-center gap-3">
                         <DollarSign className="h-8 w-8 text-primary" />
                         <div>
-                            <h2 className="text-3xl font-bold tracking-tight">Plans & Fees</h2>
+                            <h2 className="text-3xl font-bold tracking-tight">{t('plans.title')}</h2>
                             <p className="text-muted-foreground">
-                                Manage membership plans and pricing - Owner access only
+                                {t('plans.subtitle')}
                             </p>
                         </div>
                     </div>
                     <Button onClick={openAddDialog} size="lg">
                         <Plus className="mr-2 h-4 w-4" />
-                        Add New Plan
+                        {t('plans.addNewPlan')}
                     </Button>
                 </div>
 
                 <Card>
                     <CardHeader>
                         <CardTitle>
-                            {plans.length} Membership {plans.length === 1 ? 'Plan' : 'Plans'}
+                            {plans.length} {t('plans.membershipPlans')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         {plans.length === 0 ? (
                             <div className="text-center py-12">
                                 <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground mb-4">No plans created yet</p>
+                                <p className="text-muted-foreground mb-4">{t('plans.noPlansFound')}</p>
                                 <Button onClick={openAddDialog}>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Create Your First Plan
+                                    {t('plans.createFirstPlan')}
                                 </Button>
                             </div>
                         ) : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Plan Name</TableHead>
-                                        <TableHead>Price</TableHead>
-                                        <TableHead>Duration</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+                                        <TableHead>{t('plans.planName')}</TableHead>
+                                        <TableHead>{t('plans.price')}</TableHead>
+                                        <TableHead>{t('plans.duration')}</TableHead>
+                                        <TableHead>{t('plans.description')}</TableHead>
+                                        <TableHead className="text-right">{t('common.actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -283,14 +285,14 @@ export function PlansPage() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuItem onClick={() => openEditDialog(plan)}>
                                                             <Edit className="mr-2 h-4 w-4" />
-                                                            Edit Plan
+                                                            {t('plans.editPlan')}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             onClick={() => openDeleteDialog(plan)}
                                                             className="text-destructive"
                                                         >
                                                             <Trash2 className="mr-2 h-4 w-4" />
-                                                            Delete
+                                                            {t('common.delete')}
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -308,15 +310,15 @@ export function PlansPage() {
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add New Plan</DialogTitle>
+                        <DialogTitle>{t('plans.addNewPlan')}</DialogTitle>
                         <DialogDescription>
-                            Create a new membership plan with pricing and duration
+                            {t('plans.createPlanDesc')}
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddPlan}>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="add-name">Plan Name</Label>
+                                <Label htmlFor="add-name">{t('plans.planName')}</Label>
                                 <Input
                                     id="add-name"
                                     placeholder="e.g., Monthly Membership"
@@ -326,7 +328,7 @@ export function PlansPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="add-price">Price (MAD)</Label>
+                                <Label htmlFor="add-price">{t('plans.price')} (MAD)</Label>
                                 <Input
                                     id="add-price"
                                     type="number"
@@ -338,7 +340,7 @@ export function PlansPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="add-months">Months</Label>
+                                    <Label htmlFor="add-months">{t('plans.months')}</Label>
                                     <Input
                                         id="add-months"
                                         type="number"
@@ -350,7 +352,7 @@ export function PlansPage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="add-days">Extra Days (Optional)</Label>
+                                    <Label htmlFor="add-days">{t('plans.extraDays')}</Label>
                                     <Input
                                         id="add-days"
                                         type="number"
@@ -362,7 +364,7 @@ export function PlansPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="add-description">Description (Optional)</Label>
+                                <Label htmlFor="add-description">{t('plans.description')}</Label>
                                 <Input
                                     id="add-description"
                                     placeholder="Brief description of the plan"
@@ -373,9 +375,9 @@ export function PlansPage() {
                         </div>
                         <DialogFooter className="mt-6">
                             <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
-                            <Button type="submit">Add Plan</Button>
+                            <Button type="submit">{t('plans.addPlan')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -385,15 +387,15 @@ export function PlansPage() {
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit Plan</DialogTitle>
+                        <DialogTitle>{t('plans.editPlan')}</DialogTitle>
                         <DialogDescription>
-                            Update plan details
+                            {t('plans.updatePlanDetails')}
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleEditPlan}>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit-name">Plan Name</Label>
+                                <Label htmlFor="edit-name">{t('plans.planName')}</Label>
                                 <Input
                                     id="edit-name"
                                     value={planForm.name}
@@ -402,7 +404,7 @@ export function PlansPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-price">Price (MAD)</Label>
+                                <Label htmlFor="edit-price">{t('plans.price')} (MAD)</Label>
                                 <Input
                                     id="edit-price"
                                     type="number"
@@ -413,7 +415,7 @@ export function PlansPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="edit-months">Months</Label>
+                                    <Label htmlFor="edit-months">{t('plans.months')}</Label>
                                     <Input
                                         id="edit-months"
                                         type="number"
@@ -424,7 +426,7 @@ export function PlansPage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="edit-days">Extra Days (Optional)</Label>
+                                    <Label htmlFor="edit-days">{t('plans.extraDays')}</Label>
                                     <Input
                                         id="edit-days"
                                         type="number"
@@ -435,7 +437,7 @@ export function PlansPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-description">Description (Optional)</Label>
+                                <Label htmlFor="edit-description">{t('plans.description')}</Label>
                                 <Input
                                     id="edit-description"
                                     value={planForm.description}
@@ -445,9 +447,9 @@ export function PlansPage() {
                         </div>
                         <DialogFooter className="mt-6">
                             <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
-                            <Button type="submit">Save Changes</Button>
+                            <Button type="submit">{t('plans.saveChanges')}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
@@ -457,18 +459,18 @@ export function PlansPage() {
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Delete Plan</DialogTitle>
+                        <DialogTitle>{t('plans.deletePlan')}</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete "{selectedPlan?.name}"?
-                            This action cannot be undone.
+                            {t('plans.confirmDeletePlan')} "{selectedPlan?.name}"?
+                            {t('plans.cannotBeUndone')}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button type="button" variant="destructive" onClick={handleDeletePlan}>
-                            Delete Plan
+                            {t('plans.deletePlan')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

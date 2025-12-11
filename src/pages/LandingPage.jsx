@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { Dumbbell, Users, BarChart3, Shield, Smartphone, Zap } from "lucide-reac
 
 export function LandingPage() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
@@ -20,10 +22,10 @@ export function LandingPage() {
                         PowerGYM
                     </h1>
                     <p className="text-xl text-purple-200 mb-8 max-w-2xl mx-auto">
-                        The complete solution for managing your gym. Track members, subscriptions, payments, and grow your business with powerful analytics.
+                        {t('landing.heroSubtitle')}
                     </p>
                     <Button size="lg" onClick={() => navigate('/login')} className="bg-orange-500 hover:bg-orange-600 text-white text-lg px-8 py-6">
-                        Get Started →
+                        {t('landing.getStarted')} →
                     </Button>
                 </div>
 
@@ -32,9 +34,9 @@ export function LandingPage() {
                     <Card className="bg-white/10 backdrop-blur-lg border-white/20">
                         <CardContent className="p-6">
                             <Users className="h-12 w-12 text-orange-400 mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">Member Management</h3>
+                            <h3 className="text-xl font-semibold text-white mb-2">{t('landing.memberManagement')}</h3>
                             <p className="text-purple-200">
-                                Effortlessly manage member profiles, subscriptions, and track their fitness journey.
+                                {t('landing.memberManagementDesc')}
                             </p>
                         </CardContent>
                     </Card>
@@ -42,9 +44,9 @@ export function LandingPage() {
                     <Card className="bg-white/10 backdrop-blur-lg border-white/20">
                         <CardContent className="p-6">
                             <BarChart3 className="h-12 w-12 text-orange-400 mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">Analytics & Insights</h3>
+                            <h3 className="text-xl font-semibold text-white mb-2">{t('landing.paymentTracking')}</h3>
                             <p className="text-purple-200">
-                                Real-time dashboards and reports to track revenue, member growth, and performance.
+                                {t('landing.paymentTrackingDesc')}
                             </p>
                         </CardContent>
                     </Card>
@@ -52,9 +54,9 @@ export function LandingPage() {
                     <Card className="bg-white/10 backdrop-blur-lg border-white/20">
                         <CardContent className="p-6">
                             <Shield className="h-12 w-12 text-orange-400 mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">Secure & Reliable</h3>
+                            <h3 className="text-xl font-semibold text-white mb-2">{t('landing.expiryAlerts')}</h3>
                             <p className="text-purple-200">
-                                Enterprise-grade security with role-based access control and data encryption.
+                                {t('landing.expiryAlertsDesc')}
                             </p>
                         </CardContent>
                     </Card>
@@ -62,9 +64,9 @@ export function LandingPage() {
                     <Card className="bg-white/10 backdrop-blur-lg border-white/20">
                         <CardContent className="p-6">
                             <Smartphone className="h-12 w-12 text-orange-400 mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">Mobile Friendly</h3>
+                            <h3 className="text-xl font-semibold text-white mb-2">{t('landing.multiRole')}</h3>
                             <p className="text-purple-200">
-                                Access your gym management tools anywhere, anytime from any device.
+                                {t('landing.multiRoleDesc')}
                             </p>
                         </CardContent>
                     </Card>
@@ -94,12 +96,12 @@ export function LandingPage() {
                 <div className="text-center mt-16">
                     <Card className="bg-white/5 backdrop-blur-lg border-white/20 max-w-2xl mx-auto">
                         <CardContent className="p-8">
-                            <h2 className="text-3xl font-bold text-white mb-4">Ready to Transform Your Gym?</h2>
+                            <h2 className="text-3xl font-bold text-white mb-4">{t('landing.heroTitle')}</h2>
                             <p className="text-purple-200 mb-6">
                                 Join hundreds of gym owners who trust PowerGYM to manage their business.
                             </p>
                             <Button size="lg" onClick={() => navigate('/login')} className="bg-orange-500 hover:bg-orange-600 text-white">
-                                Login to Dashboard
+                                {t('auth.login')}
                             </Button>
                         </CardContent>
                     </Card>
@@ -108,3 +110,4 @@ export function LandingPage() {
         </div>
     );
 }
+

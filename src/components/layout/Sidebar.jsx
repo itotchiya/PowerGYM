@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
@@ -12,23 +13,24 @@ import {
     Dumbbell
 } from 'lucide-react';
 
-const navigation = {
-    superadmin: [
-        { name: 'Dashboard', href: '/superadmin/dashboard', icon: LayoutDashboard },
-    ],
-    gymclient: [
-        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-        { name: 'Members', href: '/members', icon: Users },
-        { name: 'Expiring Soon', href: '/expiring-soon', icon: Clock },
-        { name: 'Warnings', href: '/warnings', icon: AlertCircle, ownerOnly: true },
-        { name: 'Deleted Members', href: '/deleted', icon: Trash2, ownerOnly: true },
-        { name: 'Plans & Fees', href: '/plans', icon: CreditCard, ownerOnly: true },
-    ],
-};
-
 export function Sidebar() {
     const location = useLocation();
     const { isSuperAdmin, isOwner } = useAuth();
+    const { t } = useTranslation();
+
+    const navigation = {
+        superadmin: [
+            { name: t('nav.dashboard'), href: '/superadmin/dashboard', icon: LayoutDashboard },
+        ],
+        gymclient: [
+            { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+            { name: t('nav.members'), href: '/members', icon: Users },
+            { name: t('nav.expiringSoon'), href: '/expiring-soon', icon: Clock },
+            { name: t('nav.warnings'), href: '/warnings', icon: AlertCircle, ownerOnly: true },
+            { name: t('nav.deletedMembers'), href: '/deleted', icon: Trash2, ownerOnly: true },
+            { name: t('nav.plansFees'), href: '/plans', icon: CreditCard, ownerOnly: true },
+        ],
+    };
 
     const navItems = isSuperAdmin() ? navigation.superadmin : navigation.gymclient;
 
@@ -56,7 +58,7 @@ export function Sidebar() {
                     const isActive = location.pathname === item.href;
                     return (
                         <Link
-                            key={item.name}
+                            key={item.href}
                             to={item.href}
                             className={cn(
                                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -79,3 +81,4 @@ export function Sidebar() {
         </div>
     );
 }
+

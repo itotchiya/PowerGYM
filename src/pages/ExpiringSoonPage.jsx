@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ import { Clock, AlertCircle } from 'lucide-react';
 export function ExpiringSoonPage() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
+    const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -50,7 +52,7 @@ export function ExpiringSoonPage() {
 
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Failed to load members');
+            toast.error(t('common.loadError'));
         } finally {
             setLoading(false);
         }
@@ -82,7 +84,7 @@ export function ExpiringSoonPage() {
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
                     </div>
                 </div>
             </DashboardLayout>
@@ -95,9 +97,9 @@ export function ExpiringSoonPage() {
                 <div className="flex items-center gap-3">
                     <Clock className="h-8 w-8 text-orange-500" />
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">Expiring Soon</h2>
+                        <h2 className="text-3xl font-bold tracking-tight">{t('nav.expiringSoon')}</h2>
                         <p className="text-muted-foreground">
-                            Members with subscriptions expiring in the next 7 days
+                            {t('expiring.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -105,25 +107,25 @@ export function ExpiringSoonPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>
-                            {expiringMembers.length} {expiringMembers.length === 1 ? 'Member' : 'Members'} Expiring Soon
+                            {t('expiring.membersExpiring', { count: expiringMembers.length })}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         {expiringMembers.length === 0 ? (
                             <div className="text-center py-12">
                                 <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground">No members expiring soon</p>
+                                <p className="text-muted-foreground">{t('expiring.noMembersExpiring')}</p>
                             </div>
                         ) : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Phone</TableHead>
-                                        <TableHead>Plan</TableHead>
-                                        <TableHead>End Date</TableHead>
-                                        <TableHead>Days Left</TableHead>
+                                        <TableHead>{t('members.fullName')}</TableHead>
+                                        <TableHead>{t('members.email')}</TableHead>
+                                        <TableHead>{t('members.phone')}</TableHead>
+                                        <TableHead>{t('plans.plan')}</TableHead>
+                                        <TableHead>{t('members.endDate')}</TableHead>
+                                        <TableHead>{t('expiring.daysLeft')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -142,7 +144,7 @@ export function ExpiringSoonPage() {
                                                 </TableCell>
                                                 <TableCell>{member.email}</TableCell>
                                                 <TableCell>{member.phone}</TableCell>
-                                                <TableCell>{plan?.name || 'N/A'}</TableCell>
+                                                <TableCell>{plan?.name || t('common.notAvailable')}</TableCell>
                                                 <TableCell>
                                                     {new Date(member.currentSubscription.endDate).toLocaleDateString()}
                                                 </TableCell>
@@ -150,7 +152,7 @@ export function ExpiringSoonPage() {
                                                     <Badge
                                                         variant={daysLeft <= 3 ? 'destructive' : 'secondary'}
                                                     >
-                                                        {daysLeft} {daysLeft === 1 ? 'day' : 'days'}
+                                                        {daysLeft} {daysLeft === 1 ? t('time.day') : t('time.days')}
                                                     </Badge>
                                                 </TableCell>
                                             </TableRow>

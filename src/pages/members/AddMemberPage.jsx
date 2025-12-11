@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@/components/ui/motion-switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { X, ChevronLeft, ChevronRight, Check, Upload, User, CreditCard, IdCard, Camera } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Upload, User, CreditCard, IdCard, Camera, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
     collection,
@@ -27,6 +31,7 @@ import { ImageCropper } from '@/components/ui/image-cropper';
 export function AddMemberPage() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
+    const { t } = useTranslation();
     const [currentStep, setCurrentStep] = useState(1);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -39,6 +44,7 @@ export function AddMemberPage() {
         phone: '',
         email: '',
         cniId: '',
+        description: '',
 
         // Step 2: Plan
         planId: '',
@@ -229,6 +235,7 @@ export function AddMemberPage() {
                 cniDocumentUrl: cniDocumentUrl,
                 email: formData.email || '',
                 phone: formData.phone,
+                description: formData.description || '',
                 currentSubscription: initialSubscription,
                 subscriptionHistory: [initialSubscription],
                 payments: [{
@@ -268,24 +275,16 @@ export function AddMemberPage() {
     const outstandingBalance = Math.max(0, totalPrice - amountPaidValue);
 
     return (
-        <div className="min-h-screen bg-background">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-background border-b">
-                <div className="container max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <h1 className="text-xl font-semibold">Add New Member</h1>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => navigate('/members')}
-                        className="h-8 w-8"
-                    >
-                        <X className="h-5 w-5" />
-                    </Button>
-                </div>
-            </div>
-
-            {/* Step Indicator */}
-            <div className="container max-w-2xl mx-auto px-4 py-8">
+        <DashboardLayout hideNav>
+            <div className="max-w-2xl mx-auto pb-8">
+                {/* Page Header with Close Button */}
+                <PageHeader
+                    title={t('members.addNewMember')}
+                    backTo="/members"
+                    backLabel={t('members.backToMembers')}
+                    showClose
+                    onClose={() => navigate('/members')}
+                />
                 <div className="flex items-center justify-center mb-10">
                     {/* Step 1 */}
                     <div className="flex flex-col items-center">
@@ -339,55 +338,73 @@ export function AddMemberPage() {
                         {/* Step 1: Information */}
                         {currentStep === 1 && (
                             <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="firstName">First Name *</Label>
-                                    <Input
-                                        id="firstName"
-                                        value={formData.firstName}
-                                        onChange={(e) => handleInputChange('firstName', e.target.value)}
-                                        placeholder="Enter first name"
-                                    />
+                                {/* First Name + Last Name Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="firstName">{t('members.firstName')} *</Label>
+                                        <Input
+                                            id="firstName"
+                                            value={formData.firstName}
+                                            onChange={(e) => handleInputChange('firstName', e.target.value)}
+                                            placeholder={t('members.enterFirstName')}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="lastName">{t('members.lastName')} *</Label>
+                                        <Input
+                                            id="lastName"
+                                            value={formData.lastName}
+                                            onChange={(e) => handleInputChange('lastName', e.target.value)}
+                                            placeholder={t('members.enterLastName')}
+                                        />
+                                    </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="lastName">Last Name *</Label>
-                                    <Input
-                                        id="lastName"
-                                        value={formData.lastName}
-                                        onChange={(e) => handleInputChange('lastName', e.target.value)}
-                                        placeholder="Enter last name"
-                                    />
+                                {/* Phone + Email Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="phone">{t('members.phoneNumber')} *</Label>
+                                        <Input
+                                            id="phone"
+                                            value={formData.phone}
+                                            onChange={(e) => handleInputChange('phone', e.target.value)}
+                                            placeholder={t('members.enterPhone')}
+                                            type="tel"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="email">{t('members.email')} ({t('common.optional')})</Label>
+                                        <Input
+                                            id="email"
+                                            value={formData.email}
+                                            onChange={(e) => handleInputChange('email', e.target.value)}
+                                            placeholder={t('members.enterEmail')}
+                                            type="email"
+                                        />
+                                    </div>
                                 </div>
 
+                                {/* CNI/ID Number */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="phone">Phone Number *</Label>
-                                    <Input
-                                        id="phone"
-                                        value={formData.phone}
-                                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                                        placeholder="Enter phone number"
-                                        type="tel"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email (Optional)</Label>
-                                    <Input
-                                        id="email"
-                                        value={formData.email}
-                                        onChange={(e) => handleInputChange('email', e.target.value)}
-                                        placeholder="Enter email address"
-                                        type="email"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="cniId">CNI/ID Number (Optional)</Label>
+                                    <Label htmlFor="cniId">{t('members.cniNumber')} ({t('common.optional')})</Label>
                                     <Input
                                         id="cniId"
                                         value={formData.cniId}
                                         onChange={(e) => handleInputChange('cniId', e.target.value)}
-                                        placeholder="Enter ID number"
+                                        placeholder={t('members.enterCni')}
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">{t('members.description')} ({t('common.optional')})</Label>
+                                    <textarea
+                                        id="description"
+                                        value={formData.description}
+                                        onChange={(e) => handleInputChange('description', e.target.value)}
+                                        placeholder={t('members.enterDescription')}
+                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        rows={3}
                                     />
                                 </div>
                             </div>
@@ -412,23 +429,26 @@ export function AddMemberPage() {
                                     </Select>
                                 </div>
 
-                                {/* Payment Mode - Clickable Card */}
+                                {/* Fully Paid Toggle - Clickable Card */}
                                 <div
                                     onClick={() => handleInputChange('isFullyPaid', !formData.isFullyPaid)}
                                     className="cursor-pointer p-4 rounded-lg border transition-all hover:bg-muted/60 dark:hover:bg-muted/20 bg-muted/40 dark:bg-muted/10"
                                 >
                                     <div className="flex items-center justify-between">
                                         <div className="space-y-0.5">
-                                            <Label className="cursor-pointer text-base">Payment Mode</Label>
+                                            <Label className="cursor-pointer text-base">{t('members.fullyPaid')}</Label>
                                             <p className="text-sm text-muted-foreground">
-                                                {formData.isFullyPaid ? 'Full payment' : 'Partial payment'}
+                                                {formData.isFullyPaid ? t('common.yes') : t('common.no')}
                                             </p>
                                         </div>
-                                        <Switch
-                                            checked={formData.isFullyPaid}
-                                            onCheckedChange={(checked) => handleInputChange('isFullyPaid', checked)}
-                                            className="data-[state=checked]:bg-foreground"
-                                        />
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <Switch
+                                                size="lg"
+                                                checked={formData.isFullyPaid}
+                                                onCheckedChange={(checked) => handleInputChange('isFullyPaid', checked)}
+                                                className="data-[state=checked]:bg-foreground data-[state=unchecked]:bg-input"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -457,23 +477,23 @@ export function AddMemberPage() {
                                     </div>
                                 )}
 
-                                {/* Insurance - Clickable Card */}
+                                {/* Insurance - Clickable Card with Checkbox */}
                                 <div
                                     onClick={() => handleInputChange('includeInsurance', !formData.includeInsurance)}
                                     className="cursor-pointer p-4 rounded-lg border transition-all hover:bg-muted/60 dark:hover:bg-muted/20 bg-muted/40 dark:bg-muted/10"
                                 >
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Checkbox
+                                            checked={formData.includeInsurance}
+                                            onCheckedChange={(checked) => handleInputChange('includeInsurance', checked)}
+                                            className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                        />
                                         <div className="space-y-0.5">
                                             <Label className="cursor-pointer text-base">Include Insurance</Label>
                                             <p className="text-sm text-muted-foreground">
                                                 {formData.insuranceFee} MAD
                                             </p>
                                         </div>
-                                        <Switch
-                                            checked={formData.includeInsurance}
-                                            onCheckedChange={(checked) => handleInputChange('includeInsurance', checked)}
-                                            className="data-[state=checked]:bg-foreground"
-                                        />
                                     </div>
                                 </div>
 
@@ -605,12 +625,12 @@ export function AddMemberPage() {
                         className="flex-1"
                     >
                         <ChevronLeft className="h-4 w-4 mr-2" />
-                        Previous
+                        {t('common.previous')}
                     </Button>
 
                     {currentStep < 3 ? (
                         <Button onClick={handleNext} disabled={loading} className="flex-1">
-                            Next
+                            {t('common.next')}
                             <ChevronRight className="h-4 w-4 ml-2" />
                         </Button>
                     ) : (
@@ -618,11 +638,11 @@ export function AddMemberPage() {
                             {loading ? (
                                 <>
                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background mr-2"></div>
-                                    Adding...
+                                    {t('common.loading')}
                                 </>
                             ) : (
                                 <>
-                                    Add Member
+                                    {t('members.addMember')}
                                     <Check className="h-4 w-4 ml-2" />
                                 </>
                             )}
@@ -642,6 +662,6 @@ export function AddMemberPage() {
                 onCropComplete={handleCroppedImage}
                 aspectRatio={1.59}
             />
-        </div>
+        </DashboardLayout>
     );
 }

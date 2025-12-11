@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeSwitch } from '@/components/ui/theme-switch';
 import { Button } from '@/components/ui/button';
@@ -26,9 +27,10 @@ import { Search, Bell, User, Settings, LogOut, Dumbbell, ShieldCheck, UserCog } 
 import { toast } from 'sonner';
 import { NotificationsMenu } from '@/components/notifications/NotificationsMenu';
 
-export function TopHeader() {
+export function TopHeader({ hideBorder = false }) {
     const { user, userProfile, session, signOut, setSession } = useAuth();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [showPasswordDialog, setShowPasswordDialog] = useState(false);
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -36,7 +38,7 @@ export function TopHeader() {
     const handleSignOut = async () => {
         const result = await signOut();
         if (result.success) {
-            toast.success('Signed out successfully');
+            toast.success(t('auth.signedOutSuccess'));
         }
     };
 
@@ -46,15 +48,15 @@ export function TopHeader() {
     };
 
     const getGymName = () => {
-        if (userProfile?.role === 'superadmin') return 'Super Admin';
+        if (userProfile?.role === 'superadmin') return t('roles.superAdmin');
         // Use userProfile.gymName for real-time updates when name is changed
         return userProfile?.gymName || session?.gymName || 'PowerGYM';
     };
 
     const getUserRole = () => {
-        if (userProfile?.role === 'superadmin') return 'Administrator';
-        if (session?.subrole === 'owner') return 'Owner';
-        return 'Manager';
+        if (userProfile?.role === 'superadmin') return t('roles.administrator');
+        if (session?.subrole === 'owner') return t('roles.owner');
+        return t('roles.manager');
     };
 
     const handleSwitchRole = () => {
@@ -68,7 +70,7 @@ export function TopHeader() {
                 gymId: userProfile?.gymId,
                 gymName: userProfile?.gymName || 'PowerGYM'
             });
-            toast.success('Switched to Manager access');
+            toast.success(t('roles.switchedToManager'));
         }
     };
 
@@ -85,15 +87,15 @@ export function TopHeader() {
                     gymName: userProfile?.gymName || 'PowerGYM'
                 });
 
-                toast.success('Switched to Owner access');
+                toast.success(t('roles.switchedToOwner'));
                 setShowPasswordDialog(false);
                 setPassword('');
             } else {
-                toast.error('Incorrect password');
+                toast.error(t('header.incorrectPassword'));
             }
         } catch (error) {
             console.error('Error verifying password:', error);
-            toast.error('Failed to verify password');
+            toast.error(t('errors.somethingWentWrong'));
         } finally {
             setLoading(false);
         }
@@ -101,7 +103,7 @@ export function TopHeader() {
 
     return (
         <>
-            <header className="sticky top-0 z-50 border-b bg-background">
+            <header className={`sticky top-0 z-50 bg-background ${hideBorder ? '' : 'border-b'}`}>
                 <div className="flex h-14 items-center justify-between px-4 md:px-6">
                     {/* Left: Logo and Gym Name */}
                     <div className="flex items-center gap-3">
@@ -120,7 +122,7 @@ export function TopHeader() {
                         <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Search..."
+                                placeholder={t('header.searchPlaceholder')}
                                 className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
                             />
                         </div>
@@ -161,11 +163,11 @@ export function TopHeader() {
                                 <DropdownMenuGroup>
                                     <DropdownMenuItem>
                                         <User className="mr-2 h-4 w-4" />
-                                        <span>Profile</span>
+                                        <span>{t('header.profile')}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => navigate('/settings')}>
                                         <Settings className="mr-2 h-4 w-4" />
-                                        <span>Settings</span>
+                                        <span>{t('header.settings')}</span>
                                     </DropdownMenuItem>
 
                                     {/* Switch Role - Only for Gym Clients */}
@@ -176,12 +178,12 @@ export function TopHeader() {
                                                 {session?.subrole === 'owner' ? (
                                                     <>
                                                         <UserCog className="mr-2 h-4 w-4" />
-                                                        <span>Switch to Manager</span>
+                                                        <span>{t('roles.switchToManager')}</span>
                                                     </>
                                                 ) : (
                                                     <>
                                                         <ShieldCheck className="mr-2 h-4 w-4" />
-                                                        <span>Switch to Owner</span>
+                                                        <span>{t('roles.switchToOwner')}</span>
                                                     </>
                                                 )}
                                             </DropdownMenuItem>
@@ -191,7 +193,7 @@ export function TopHeader() {
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                                     <LogOut className="mr-2 h-4 w-4" />
-                                    <span>Sign out</span>
+                                    <span>{t('auth.signOut')}</span>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -203,18 +205,18 @@ export function TopHeader() {
             <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Owner Verification</DialogTitle>
+                        <DialogTitle>{t('header.ownerVerification')}</DialogTitle>
                         <DialogDescription>
-                            Enter your owner password to switch to owner access
+                            {t('header.enterOwnerPassword')}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="switch-password">Password</Label>
+                            <Label htmlFor="switch-password">{t('auth.password')}</Label>
                             <Input
                                 id="switch-password"
                                 type="password"
-                                placeholder="Enter your password"
+                                placeholder={t('auth.password')}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
@@ -226,10 +228,10 @@ export function TopHeader() {
                             setShowPasswordDialog(false);
                             setPassword('');
                         }}>
-                            Cancel
+                            {t('common.cancel')}
                         </Button>
                         <Button onClick={handleVerifyPassword} disabled={loading}>
-                            {loading ? 'Verifying...' : 'Verify'}
+                            {loading ? t('common.verifying') : t('common.verify')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -237,3 +239,4 @@ export function TopHeader() {
         </>
     );
 }
+

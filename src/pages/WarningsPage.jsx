@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { AlertTriangle } from 'lucide-react';
 export function WarningsPage() {
     const navigate = useNavigate();
     const { userProfile } = useAuth();
+    const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -44,7 +46,7 @@ export function WarningsPage() {
 
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Failed to load warnings');
+            toast.error(t('warnings.loadError'));
         } finally {
             setLoading(false);
         }
@@ -75,7 +77,7 @@ export function WarningsPage() {
                 <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">Loading...</p>
+                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
                     </div>
                 </div>
             </DashboardLayout>
@@ -88,9 +90,9 @@ export function WarningsPage() {
                 <div className="flex items-center gap-3">
                     <AlertTriangle className="h-8 w-8 text-destructive" />
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight">Member Warnings</h2>
+                        <h2 className="text-3xl font-bold tracking-tight">{t('warnings.title')}</h2>
                         <p className="text-muted-foreground">
-                            All warnings for members - Owner access only
+                            {t('warnings.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -99,7 +101,7 @@ export function WarningsPage() {
                 <div className="grid gap-4 md:grid-cols-3">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Warnings</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('warnings.totalWarnings')}</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -109,7 +111,7 @@ export function WarningsPage() {
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Members with Warnings</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('warnings.membersWithWarnings')}</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -119,7 +121,7 @@ export function WarningsPage() {
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Recent (7 days)</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('warnings.recent7Days')}</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -137,24 +139,24 @@ export function WarningsPage() {
                 {/* Warnings Table */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>All Warnings ({allWarnings.length})</CardTitle>
+                        <CardTitle>{t('warnings.allWarnings')} ({allWarnings.length})</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {allWarnings.length === 0 ? (
                             <div className="text-center py-12">
                                 <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-muted-foreground">No warnings found</p>
+                                <p className="text-muted-foreground">{t('warnings.noWarnings')}</p>
                             </div>
                         ) : (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Member</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Warning Message</TableHead>
-                                        <TableHead>Added By</TableHead>
-                                        <TableHead className="text-right">Action</TableHead>
+                                        <TableHead>{t('warnings.date')}</TableHead>
+                                        <TableHead>{t('members.member')}</TableHead>
+                                        <TableHead>{t('members.email')}</TableHead>
+                                        <TableHead>{t('warnings.warningMessage')}</TableHead>
+                                        <TableHead>{t('warnings.addedBy')}</TableHead>
+                                        <TableHead className="text-right rtl:text-left">{t('common.actions')}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -175,13 +177,13 @@ export function WarningsPage() {
                                             <TableCell>
                                                 <Badge variant="secondary">{warning.addedBy}</Badge>
                                             </TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="text-right rtl:text-left">
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() => navigate(`/members/${warning.memberId}`)}
                                                 >
-                                                    View Member
+                                                    {t('warnings.viewMember')}
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

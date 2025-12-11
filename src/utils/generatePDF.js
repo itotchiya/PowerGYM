@@ -53,7 +53,7 @@ function drawTable(doc, headers, data, startY, options = {}) {
 }
 
 /**
- * Generate a professional Member "Fiche Technique" PDF
+ * Generate a professional Member "Fiche Membre" PDF
  * Contains: Member details, Financial info, Subscription history, Payment history
  */
 export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
@@ -72,7 +72,7 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
 
         doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
-        doc.text('Fiche Technique - Member Technical File', 14, 30);
+        doc.text('Fiche Membre - Member File', 14, 30);
 
         doc.setFontSize(10);
         doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 14, 30, { align: 'right' });
@@ -211,8 +211,18 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
             doc.text(`${gymName || 'PowerGYM'} - Confidential`, 14, doc.internal.pageSize.getHeight() - 10);
         }
 
-        // Save
-        const fileName = `${member.firstName || 'Member'}_${member.lastName || ''}_FicheTechnique.pdf`;
+        // Save - Format: FirstName_LastName_CNI_FicheMembre_MemberID
+        const clean = (value, fallback = '') =>
+            (value || fallback).replace(/[^a-zA-Z0-9]/g, '');
+
+        const firstName = clean(member.firstName, 'Member');
+        const lastName = clean(member.lastName, '');
+        const cni = clean(member.cniId, 'NA');
+        const memberId = member.memberId || member.id || 'ID';
+
+        // Underscore version with no spaces
+        const fileName = `${firstName}_${lastName}_${cni}_FicheMembre_${memberId}.pdf`;
+
         doc.save(fileName);
 
         return true;
@@ -242,7 +252,7 @@ export function generateSubscriptionPDF(member, subscription, gymName = 'PowerGY
 
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
-        doc.text('Subscription Receipt', 14, 28);
+        doc.text('Fiche Abonnement - Subscription File', 14, 28);
 
         doc.setFontSize(9);
         doc.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - 14, 28, { align: 'right' });
@@ -312,8 +322,12 @@ export function generateSubscriptionPDF(member, subscription, gymName = 'PowerGY
         doc.setFontSize(8);
         doc.text(`${gymName || 'PowerGYM'} - Subscription Document`, 14, doc.internal.pageSize.getHeight() - 10);
 
-        // Save
-        const fileName = `${member.firstName || 'Member'}_${member.lastName || ''}_Subscription.pdf`;
+        // Save - Format: FirstName - LastName - CNI - Date - Fiche Abonnement
+        const firstName = (member.firstName || 'Member').replace(/[^a-zA-Z0-9]/g, '');
+        const lastName = (member.lastName || '').replace(/[^a-zA-Z0-9]/g, '');
+        const cni = (member.cniId || 'N-A').replace(/[^a-zA-Z0-9]/g, '');
+        const subDate = new Date(subscription.startDate).toLocaleDateString('fr-FR').replace(/\//g, '-');
+        const fileName = `${firstName}_${lastName}_${cni}_${subDate}_FicheAbonnement.pdf`;
         doc.save(fileName);
 
         return true;

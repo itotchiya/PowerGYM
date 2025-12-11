@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -21,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 export function NotificationsPage() {
     const { user, userProfile, session } = useAuth();
+    const { t } = useTranslation();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -265,23 +268,27 @@ export function NotificationsPage() {
 
     if (isManager) {
         return (
-            <DashboardLayout>
+            <DashboardLayout hideNav>
+                <PageHeader
+                    title={t('notifications.title')}
+                    subtitle={t('notifications.subtitle')}
+                    backTo="/dashboard"
+                />
                 <div className="flex items-center justify-center h-[50vh]">
-                    <p className="text-muted-foreground">You do not have permission to view notifications.</p>
+                    <p className="text-muted-foreground">{t('notifications.noPermission')}</p>
                 </div>
             </DashboardLayout>
         );
     }
 
     return (
-        <DashboardLayout>
-            <div className="container mx-auto py-8 max-w-3xl space-y-8">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        View your request history and system alerts.
-                    </p>
-                </div>
+        <DashboardLayout hideNav>
+            <div className="container mx-auto py-4 md:py-8 max-w-3xl space-y-6 md:space-y-8 px-4">
+                <PageHeader
+                    title={t('notifications.title')}
+                    subtitle={t('notifications.subtitle')}
+                    backTo="/dashboard"
+                />
 
                 {loading ? (
                     <div className="flex justify-center p-12">

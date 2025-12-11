@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ export function LoginPage() {
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuth();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     // Registration form state
     const [showRegisterDialog, setShowRegisterDialog] = useState(false);
@@ -45,9 +47,9 @@ export function LoginPage() {
         const result = await signIn(email, password);
 
         if (result.success) {
-            toast.success("Login successful!");
+            toast.success(t('auth.signedOutSuccess').replace('out', 'in'));
         } else {
-            toast.error(result.error || "Invalid email or password");
+            toast.error(result.error || t('auth.invalidCredentials'));
         }
 
         setLoading(false);
@@ -57,7 +59,7 @@ export function LoginPage() {
         e.preventDefault();
 
         if (!registerForm.ownerName || !registerForm.email || !registerForm.phone || !registerForm.gymName) {
-            toast.error("Please fill all required fields");
+            toast.error(t('errors.requiredField'));
             return;
         }
 
@@ -82,7 +84,7 @@ export function LoginPage() {
             });
         } catch (error) {
             console.error("Error submitting application:", error);
-            toast.error("Failed to submit application. Please try again.");
+            toast.error(t('errors.somethingWentWrong'));
         } finally {
             setRegisterLoading(false);
         }
@@ -98,12 +100,12 @@ export function LoginPage() {
                         </div>
                     </div>
                     <CardTitle className="text-2xl">Welcome to PowerGYM</CardTitle>
-                    <CardDescription>Sign in to access your dashboard</CardDescription>
+                    <CardDescription>{t('auth.enterCredentials')}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
+                            <Label htmlFor="email">{t('auth.email')}</Label>
                             <Input
                                 id="email"
                                 type="email"
@@ -115,7 +117,7 @@ export function LoginPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
+                            <Label htmlFor="password">{t('auth.password')}</Label>
                             <Input
                                 id="password"
                                 type="password"
@@ -128,14 +130,14 @@ export function LoginPage() {
                         </div>
                         <Button type="submit" className="w-full" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {loading ? "Signing in..." : "Sign In"}
+                            {loading ? `${t('common.loading')}` : t('auth.signIn')}
                         </Button>
                     </form>
 
                     {/* Gym Owner Registration Link */}
                     <div className="mt-6 pt-6 border-t text-center">
                         <p className="text-sm text-muted-foreground mb-2">
-                            Don't have an account?
+                            {t('auth.dontHaveAccount')}
                         </p>
                         <Button
                             variant="outline"
@@ -150,7 +152,7 @@ export function LoginPage() {
                     <div className="mt-6 p-4 bg-muted rounded-lg">
                         <p className="text-sm font-semibold mb-2">Demo Credentials:</p>
                         <div className="text-xs space-y-1 text-muted-foreground">
-                            <p><strong>Super Admin:</strong> admin@gymmaster.com / SuperAdmin123!</p>
+                            <p><strong>{t('roles.superAdmin')}:</strong> admin@gymmaster.com / SuperAdmin123!</p>
                             <p><strong>Gym Client:</strong> owner@gymtest.com / GymOwner123!</p>
                         </div>
                     </div>
@@ -182,7 +184,7 @@ export function LoginPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="regPhone">Phone Number *</Label>
+                                <Label htmlFor="regPhone">{t('members.phoneNumber')} *</Label>
                                 <Input
                                     id="regPhone"
                                     type="tel"
@@ -194,7 +196,7 @@ export function LoginPage() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="regEmail">Email Address *</Label>
+                            <Label htmlFor="regEmail">{t('auth.emailAddress')} *</Label>
                             <Input
                                 id="regEmail"
                                 type="email"
@@ -205,7 +207,7 @@ export function LoginPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="gymName">Gym Name *</Label>
+                            <Label htmlFor="gymName">{t('settings.gymName')} *</Label>
                             <Input
                                 id="gymName"
                                 placeholder="Fitness Pro Gym"
@@ -215,7 +217,7 @@ export function LoginPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="gymAddress">Gym Address</Label>
+                            <Label htmlFor="gymAddress">{t('members.address')}</Label>
                             <Input
                                 id="gymAddress"
                                 placeholder="123 Main Street, City"
@@ -239,11 +241,11 @@ export function LoginPage() {
                                 variant="outline"
                                 onClick={() => setShowRegisterDialog(false)}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={registerLoading}>
                                 {registerLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {registerLoading ? "Submitting..." : "Submit Application"}
+                                {registerLoading ? t('settings.submitting') : t('common.submit')}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -252,4 +254,5 @@ export function LoginPage() {
         </div>
     );
 }
+
 
