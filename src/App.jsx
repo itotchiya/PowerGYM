@@ -9,6 +9,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { GymDashboard } from '@/pages/dashboard/GymDashboard';
 import { SuperAdminDashboard } from '@/pages/superadmin/SuperAdminDashboard';
 import { GymRequestsPage } from '@/pages/superadmin/GymRequestsPage';
+import { SuperAdminSettingsPage } from '@/pages/superadmin/SuperAdminSettingsPage';
 
 // Gym Client Pages
 import { MembersPage } from '@/pages/members/MembersPage';
@@ -80,6 +81,14 @@ function App() {
           element={
             <ProtectedRoute requireSuperAdmin>
               <GymRequestsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/superadmin/settings"
+          element={
+            <ProtectedRoute requireSuperAdmin>
+              <SuperAdminSettingsPage />
             </ProtectedRoute>
           }
         />

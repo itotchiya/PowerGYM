@@ -43,7 +43,12 @@
         "ofCount": "من {{count}}",
         "optional": "اختياري",
         "yes": "نعم",
-        "no": "لا"
+        "no": "لا",
+        "change": "تغيير",
+        "saving": "جاري الحفظ...",
+        "save": "حفظ",
+        "cancel": "إلغاء",
+        "processing": "جارٍ المعالجة..."
     },
     "nav": {
         "dashboard": "لوحة التحكم",
@@ -349,7 +354,26 @@
         "languageChanged": "تم تغيير اللغة إلى {{language}}",
         "english": "الإنجليزية",
         "french": "الفرنسية",
-        "arabic": "العربية"
+        "arabic": "العربية",
+        "email": "عنوان البريد الإلكتروني",
+        "phoneNumber": "رقم الهاتف",
+        "changeEmail": "تغيير البريد الإلكتروني",
+        "changeEmailDesc": "تحديث عنوان البريد الإلكتروني لحسابك",
+        "newEmail": "عنوان البريد الجديد",
+        "emailUpdated": "تم تحديث البريد الإلكتروني بنجاح",
+        "invalidEmail": "يرجى إدخال عنوان بريد إلكتروني صحيح",
+        "changePhone": "تغيير رقم الهاتف",
+        "changePhoneDesc": "تحديث رقم هاتف حسابك",
+        "newPhone": "رقم الهاتف الجديد",
+        "phoneUpdated": "تم تحديث رقم الهاتف بنجاح",
+        "otpSent": "تم إرسال رمز التحقق!",
+        "invalidOtp": "رمز التحقق غير صحيح",
+        "invalidOtpOrExpired": "الرمز غير صحيح أو منتهي الصلاحية",
+        "enterOtpCode": "أدخل رمز التحقق",
+        "otpSentTo": "أرسلنا رمزاً مكوناً من 6 أرقام إلى",
+        "sendOtp": "إرسال الرمز",
+        "verifyAndSave": "تحقق وحفظ",
+        "verify": "تحقق"
     },
     "notifications": {
         "title": "الإشعارات",

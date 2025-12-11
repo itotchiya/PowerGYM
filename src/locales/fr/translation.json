@@ -43,7 +43,12 @@
         "ofCount": "sur {{count}}",
         "optional": "Optionnel",
         "yes": "Oui",
-        "no": "Non"
+        "no": "Non",
+        "change": "Modifier",
+        "saving": "Enregistrement...",
+        "save": "Enregistrer",
+        "cancel": "Annuler",
+        "processing": "Traitement..."
     },
     "nav": {
         "dashboard": "Tableau de bord",
@@ -349,7 +354,26 @@
         "languageChanged": "Langue changée en {{language}}",
         "english": "Anglais",
         "french": "Français",
-        "arabic": "Arabe"
+        "arabic": "Arabe",
+        "email": "Adresse e-mail",
+        "phoneNumber": "Numéro de téléphone",
+        "changeEmail": "Changer l'email",
+        "changeEmailDesc": "Mettre à jour votre adresse e-mail",
+        "newEmail": "Nouvelle adresse e-mail",
+        "emailUpdated": "Email mis à jour avec succès",
+        "invalidEmail": "Veuillez entrer une adresse e-mail valide",
+        "changePhone": "Changer le numéro",
+        "changePhoneDesc": "Mettre à jour votre numéro de téléphone",
+        "newPhone": "Nouveau numéro de téléphone",
+        "phoneUpdated": "Numéro de téléphone mis à jour avec succès",
+        "otpSent": "Code OTP envoyé !",
+        "invalidOtp": "Code OTP invalide",
+        "invalidOtpOrExpired": "Code OTP invalide ou expiré",
+        "enterOtpCode": "Entrez le code de vérification",
+        "otpSentTo": "Nous avons envoyé un code à 6 chiffres à",
+        "sendOtp": "Envoyer OTP",
+        "verifyAndSave": "Vérifier & Enregistrer",
+        "verify": "Vérifier"
     },
     "notifications": {
         "title": "Notifications",

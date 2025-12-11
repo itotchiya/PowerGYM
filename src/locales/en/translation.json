@@ -44,7 +44,12 @@
         "loadError": "Failed to load data",
         "optional": "Optional",
         "yes": "Yes",
-        "no": "No"
+        "no": "No",
+        "change": "Change",
+        "saving": "Saving...",
+        "save": "Save",
+        "cancel": "Cancel",
+        "processing": "Processing..."
     },
     "nav": {
         "dashboard": "Dashboard",
@@ -350,7 +355,26 @@
         "languageChanged": "Language changed to {{language}}",
         "english": "English",
         "french": "French",
-        "arabic": "Arabic"
+        "arabic": "Arabic",
+        "email": "Email Address",
+        "phoneNumber": "Phone Number",
+        "changeEmail": "Change Email",
+        "changeEmailDesc": "Update your account email address",
+        "newEmail": "New Email Address",
+        "emailUpdated": "Email updated successfully",
+        "invalidEmail": "Please enter a valid email address",
+        "changePhone": "Change Phone Number",
+        "changePhoneDesc": "Update your account phone number",
+        "newPhone": "New Phone Number",
+        "phoneUpdated": "Phone number updated successfully",
+        "otpSent": "OTP code sent!",
+        "invalidOtp": "Invalid OTP code",
+        "invalidOtpOrExpired": "Invalid or expired OTP code",
+        "enterOtpCode": "Enter Verification Code",
+        "otpSentTo": "We sent a 6-digit code to",
+        "sendOtp": "Send OTP",
+        "verifyAndSave": "Verify & Save",
+        "verify": "Verify"
     },
     "notifications": {
         "title": "Notifications",
@@ -480,5 +504,11 @@
         "yearToDate": "Year to Date",
         "days": "days",
         "day": "day"
+    },
+    "errors": {
+        "requiredField": "This field is required",
+        "emailMismatch": "Emails do not match",
+        "recaptchaExpired": "Verification expired. Please try again.",
+        "somethingWentWrong": "Something went wrong. Please try again."
     }
 }

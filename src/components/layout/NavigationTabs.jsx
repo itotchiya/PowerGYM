@@ -10,7 +10,8 @@ import {
     CreditCard,
     Clock,
     Building2,
-    Inbox
+    Inbox,
+    Settings
 } from 'lucide-react';
 
 export function NavigationTabs() {
@@ -31,6 +32,7 @@ export function NavigationTabs() {
         { name: t('nav.dashboard'), href: '/superadmin/dashboard', icon: LayoutDashboard },
         { name: t('superadmin.gyms'), href: '/superadmin/gyms', icon: Building2 },
         { name: t('superadmin.requests'), href: '/superadmin/requests', icon: Inbox },
+        { name: t('nav.settings'), href: '/superadmin/settings', icon: Settings },
     ];
 
     const navItems = isSuperAdmin() ? superAdminNavigation : gymNavigation;

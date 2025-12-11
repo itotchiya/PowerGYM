@@ -10,7 +10,9 @@ import {
     CreditCard,
     Building2,
     Clock,
-    Dumbbell
+    Dumbbell,
+    Settings,
+    Inbox
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -21,6 +23,9 @@ export function Sidebar() {
     const navigation = {
         superadmin: [
             { name: t('nav.dashboard'), href: '/superadmin/dashboard', icon: LayoutDashboard },
+            { name: t('superadmin.gyms'), href: '/superadmin/dashboard', icon: Building2 },
+            { name: t('superadmin.requests'), href: '/superadmin/requests', icon: Inbox },
+            { name: t('nav.settings'), href: '/superadmin/settings', icon: Settings },
         ],
         gymclient: [
             { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
