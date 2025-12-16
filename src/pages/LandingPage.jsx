@@ -3,14 +3,45 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { Dumbbell, Users, BarChart3, Shield, Smartphone, Zap } from "lucide-react";
+import { Dumbbell, Users, BarChart3, Shield, Smartphone, Zap, Info } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function LandingPage() {
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { user, userProfile, session } = useAuth();
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+            {/* Logged In User Alert */}
+            {user && (
+                <div className="container mx-auto px-4 pt-6">
+                    <Alert className="bg-orange-500/20 border-orange-400/50 backdrop-blur-lg">
+                        <Info className="h-5 w-5 text-orange-400" />
+                        <AlertDescription className="text-white ml-2 flex items-center justify-between flex-wrap gap-4">
+                            <span className="text-lg">
+                                You are already logged in!
+                            </span>
+                            <Button
+                                onClick={() => {
+                                    if (userProfile?.role === 'superadmin') {
+                                        navigate('/superadmin/dashboard');
+                                    } else if (session) {
+                                        navigate('/dashboard');
+                                    } else {
+                                        navigate('/select-role');
+                                    }
+                                }}
+                                className="bg-orange-500 hover:bg-orange-600 text-white"
+                            >
+                                Access Dashboard →
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                </div>
+            )}
+
             {/* Hero Section */}
             <div className="container mx-auto px-4 py-16">
                 <div className="text-center mb-16">

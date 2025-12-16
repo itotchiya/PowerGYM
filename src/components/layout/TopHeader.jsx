@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeSwitch } from '@/components/ui/theme-switch';
@@ -26,6 +26,7 @@ import {
 import { Search, Bell, Settings, LogOut, Dumbbell, ShieldCheck, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { NotificationsMenu } from '@/components/notifications/NotificationsMenu';
+import { GlobalSearch } from '@/components/GlobalSearch';
 
 export function TopHeader({ hideBorder = false }) {
     const { user, userProfile, session, signOut, setSession } = useAuth();
@@ -34,6 +35,19 @@ export function TopHeader({ hideBorder = false }) {
     const [showPasswordDialog, setShowPasswordDialog] = useState(false);
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+
+    // Keyboard shortcut for search (Ctrl+K or Cmd+K)
+    useEffect(() => {
+        const down = (e) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                setSearchOpen((open) => !open);
+            }
+        };
+        document.addEventListener('keydown', down);
+        return () => document.removeEventListener('keydown', down);
+    }, []);
 
     const handleSignOut = async () => {
         const result = await signOut();
@@ -119,19 +133,28 @@ export function TopHeader({ hideBorder = false }) {
 
                     {/* Center: Search (hidden on mobile) */}
                     <div className="hidden md:flex flex-1 max-w-md mx-6">
-                        <div className="relative w-full">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder={t('header.searchPlaceholder')}
-                                className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
-                            />
-                        </div>
+                        <Button
+                            variant="outline"
+                            className="relative w-full justify-start text-sm text-muted-foreground bg-muted/50 border-0 hover:bg-muted"
+                            onClick={() => setSearchOpen(true)}
+                        >
+                            <Search className="mr-2 h-4 w-4" />
+                            <span>{t('header.searchPlaceholder')}</span>
+                            <kbd className="pointer-events-none absolute right-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+                                <span className="text-xs">⌘</span>K
+                            </kbd>
+                        </Button>
                     </div>
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-2">
                         {/* Mobile Search Button */}
-                        <Button variant="ghost" size="icon" className="md:hidden">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="md:hidden"
+                            onClick={() => setSearchOpen(true)}
+                        >
                             <Search className="h-5 w-5" />
                         </Button>
 
@@ -201,6 +224,9 @@ export function TopHeader({ hideBorder = false }) {
                     </div>
                 </div>
             </header>
+
+            {/* Global Search Dialog */}
+            <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
 
             {/* Verify Password Dialog for Switching to Owner */}
             <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>

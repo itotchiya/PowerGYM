@@ -505,5 +505,10 @@
         "yearToDate": "Depuis le début de l'année",
         "days": "jours",
         "day": "jour"
+    },
+    "search": {
+        "navigation": "Navigation",
+        "members": "Membres",
+        "noResults": "Aucun résultat trouvé"
     }
 }

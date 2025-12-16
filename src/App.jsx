@@ -4,6 +4,7 @@ import { LandingPage } from '@/pages/LandingPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RoleSelection } from '@/pages/RoleSelection';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 
 // Dashboard Pages
 import { GymDashboard } from '@/pages/dashboard/GymDashboard';
@@ -185,8 +186,8 @@ function App() {
           }
         />
 
-        {/* Catch all */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Catch all - 404 Page */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   );

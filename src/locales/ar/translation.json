@@ -505,5 +505,10 @@
         "yearToDate": "منذ بداية السنة",
         "days": "أيام",
         "day": "يوم"
+    },
+    "search": {
+        "navigation": "التنقل",
+        "members": "الأعضاء",
+        "noResults": "لا توجد نتائج"
     }
 }

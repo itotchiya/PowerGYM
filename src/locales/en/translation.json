@@ -507,6 +507,11 @@
         "days": "days",
         "day": "day"
     },
+    "search": {
+        "navigation": "Navigation",
+        "members": "Members",
+        "noResults": "No results found"
+    },
     "errors": {
         "requiredField": "This field is required",
         "emailMismatch": "Emails do not match",
