@@ -19,7 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
@@ -68,6 +68,7 @@ export function SettingsPage() {
     // Email Change State
     const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
     const [newEmail, setNewEmail] = useState("");
+    const [emailPassword, setEmailPassword] = useState(""); // Password for re-authentication
     const [emailOtpStep, setEmailOtpStep] = useState('input'); // 'input' | 'verify'
     const [emailOtpCode, setEmailOtpCode] = useState("");
 
@@ -274,33 +275,37 @@ export function SettingsPage() {
         setIsLoading(true);
 
         try {
+            // Verify OTP first
             const verifyEmailOTP = httpsCallable(functions, 'verifyEmailOTP');
             await verifyEmailOTP({ otp: emailOtpCode, email: newEmail.trim() });
 
-            // If OTP verified, update email in Auth and Firestore
-            // Note: Update email in Firebase Auth requires re-authentication usually.
-            // For simplicity here, we update Firestore profile. 
-            // Updating Auth email would require `updateEmail(auth.currentUser, newEmail)`
+            // Re-authenticate user with current credentials before changing email
+            const credential = EmailAuthProvider.credential(user.email, emailPassword);
+            await reauthenticateWithCredential(auth.currentUser, credential);
 
+            // Update Firebase Auth email (this changes the login email)
+            await updateEmail(auth.currentUser, newEmail.trim());
+
+            // Also update Firestore profile
             await updateDoc(doc(db, 'users', user.uid), {
                 email: newEmail.trim()
             });
 
-            // Also try to update Auth email if possible (may fail if recent login required)
-            try {
-                // await updateEmail(auth.currentUser, newEmail);
-            } catch (err) {
-                console.warn("Could not update Auth email (requires recent login)", err);
-            }
-
             toast.success(t('settings.emailUpdated'));
             setIsEmailDialogOpen(false);
             setNewEmail("");
+            setEmailPassword("");
             setEmailOtpStep('input');
             setEmailOtpCode("");
         } catch (error) {
             console.error("Error verifying email OTP:", error);
-            toast.error(t('settings.invalidOtpOrExpired'));
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+                toast.error(t('settings.currentPasswordIncorrect'));
+            } else if (error.code === 'auth/email-already-in-use') {
+                toast.error(t('settings.emailAlreadyInUse'));
+            } else {
+                toast.error(t('settings.invalidOtpOrExpired'));
+            }
         } finally {
             setIsLoading(false);
         }
@@ -797,17 +802,32 @@ export function SettingsPage() {
 
                     <form onSubmit={emailOtpStep === 'input' ? handleEmailChangeRequest : verifyEmailOtpAndSave} className="space-y-4 py-4">
                         {emailOtpStep === 'input' ? (
-                            <div className="space-y-2">
-                                <Label htmlFor="new-email">{t('settings.newEmail')}</Label>
-                                <Input
-                                    id="new-email"
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    value={newEmail}
-                                    onChange={(e) => setNewEmail(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="new-email">{t('settings.newEmail')}</Label>
+                                    <Input
+                                        id="new-email"
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        value={newEmail}
+                                        onChange={(e) => setNewEmail(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="email-password">{t('settings.currentPassword')}</Label>
+                                    <Input
+                                        id="email-password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={emailPassword}
+                                        onChange={(e) => setEmailPassword(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                    <p className="text-xs text-muted-foreground">{t('settings.passwordRequiredForEmail')}</p>
+                                </div>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -835,12 +855,13 @@ export function SettingsPage() {
                                     setIsEmailDialogOpen(false);
                                     setEmailOtpStep('input');
                                     setEmailOtpCode('');
+                                    setEmailPassword('');
                                 }}
                                 disabled={isLoading}
                             >
                                 {t('common.cancel')}
                             </Button>
-                            <Button type="submit" disabled={isLoading}>
+                            <Button type="submit" disabled={isLoading || (emailOtpStep === 'input' && !emailPassword)}>
                                 {isLoading ? t('common.processing') : (emailOtpStep === 'input' ? t('settings.sendOtp') : t('settings.verifyAndSave'))}
                             </Button>
                         </DialogFooter>

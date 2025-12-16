@@ -594,7 +594,7 @@ export function MembersPage() {
                             {t('members.manageMembers', { count: filteredMembers.length })}
                         </p>
                     </div>
-                    {isOwner() && (
+                    {(isOwner() || isManager()) && (
                         <Button onClick={() => navigate('/members/add')} size="lg">
                             <Plus className="mr-2 h-4 w-4" />
                             {t('members.addNewMember')}

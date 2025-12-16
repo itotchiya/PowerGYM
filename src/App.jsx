@@ -115,7 +115,7 @@ function App() {
         <Route
           path="/members/add"
           element={
-            <ProtectedRoute requireOwner>
+            <ProtectedRoute>
               <AddMemberPage />
             </ProtectedRoute>
           }
@@ -170,7 +170,7 @@ function App() {
         <Route
           path="/settings"
           element={
-            <ProtectedRoute requireOwner>
+            <ProtectedRoute>
               <SettingsPage />
             </ProtectedRoute>
           }

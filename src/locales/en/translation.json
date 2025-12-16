@@ -374,7 +374,9 @@
         "otpSentTo": "We sent a 6-digit code to",
         "sendOtp": "Send OTP",
         "verifyAndSave": "Verify & Save",
-        "verify": "Verify"
+        "verify": "Verify",
+        "passwordRequiredForEmail": "Your password is required to change your email address",
+        "emailAlreadyInUse": "This email is already in use by another account"
     },
     "notifications": {
         "title": "Notifications",

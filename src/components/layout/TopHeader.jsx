@@ -23,7 +23,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Search, Bell, User, Settings, LogOut, Dumbbell, ShieldCheck, UserCog } from 'lucide-react';
+import { Search, Bell, Settings, LogOut, Dumbbell, ShieldCheck, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { NotificationsMenu } from '@/components/notifications/NotificationsMenu';
 
@@ -161,13 +161,11 @@ export function TopHeader({ hideBorder = false }) {
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuGroup>
-                                    <DropdownMenuItem>
-                                        <User className="mr-2 h-4 w-4" />
-                                        <span>{t('header.profile')}</span>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => navigate('/settings')}>
-                                        <Settings className="mr-2 h-4 w-4" />
-                                        <span>{t('header.settings')}</span>
+                                    <DropdownMenuItem asChild>
+                                        <Link to="/settings" className="flex items-center w-full">
+                                            <Settings className="mr-2 h-4 w-4" />
+                                            <span>{t('header.settings')}</span>
+                                        </Link>
                                     </DropdownMenuItem>
 
                                     {/* Switch Role - Only for Gym Clients */}
@@ -191,8 +189,11 @@ export function TopHeader({ hideBorder = false }) {
                                     )}
                                 </DropdownMenuGroup>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                                    <LogOut className="mr-2 h-4 w-4" />
+                                <DropdownMenuItem
+                                    onClick={handleSignOut}
+                                    className="text-red-600 bg-red-500/10 hover:bg-red-500/20 focus:bg-red-500/20 focus:text-red-600"
+                                >
+                                    <LogOut className="mr-2 h-4 w-4 text-red-600" />
                                     <span>{t('auth.signOut')}</span>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>

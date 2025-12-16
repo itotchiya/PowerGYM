@@ -373,7 +373,9 @@
         "otpSentTo": "أرسلنا رمزاً مكوناً من 6 أرقام إلى",
         "sendOtp": "إرسال الرمز",
         "verifyAndSave": "تحقق وحفظ",
-        "verify": "تحقق"
+        "verify": "تحقق",
+        "passwordRequiredForEmail": "كلمة المرور مطلوبة لتغيير عنوان بريدك الإلكتروني",
+        "emailAlreadyInUse": "هذا البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر"
     },
     "notifications": {
         "title": "الإشعارات",
