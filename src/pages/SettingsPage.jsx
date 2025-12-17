@@ -20,7 +20,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
@@ -293,22 +293,29 @@ export function SettingsPage() {
             const credential = EmailAuthProvider.credential(user.email, emailPassword);
             await reauthenticateWithCredential(auth.currentUser, credential);
 
-            // Send verification to the NEW email address
-            // User must click the link in the new email to complete the change
-            await verifyBeforeUpdateEmail(auth.currentUser, newEmail.trim());
+            const oldEmail = user.email;
 
-            // Note: Firestore update will happen when user verifies the new email
-            // For now, we just notify the user to check their new email
+            // Update Firebase Auth email (this changes the login email)
+            await updateEmail(auth.currentUser, newEmail.trim());
 
-            // Log to audit (email change pending verification)
-            await createGymSettingsAuditLog(
-                userProfile.gymId,
-                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
-                AUDIT_ACTIONS.UPDATED,
-                [{ field: 'ownerEmail', oldValue: userProfile.email, newValue: `${newEmail.trim()} (pending verification)` }]
-            );
+            // Update Firestore profile immediately after Firebase Auth update
+            await updateDoc(doc(db, 'users', user.uid), {
+                email: newEmail.trim()
+            });
 
-            toast.success(t('settings.emailVerificationSent') || 'Verification email sent! Please check your new email inbox and click the link to complete the change.');
+            // Log to audit (only after both updates succeed)
+            try {
+                await createGymSettingsAuditLog(
+                    userProfile.gymId,
+                    { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                    AUDIT_ACTIONS.UPDATED,
+                    [{ field: 'ownerEmail', oldValue: oldEmail, newValue: newEmail.trim() }]
+                );
+            } catch (auditError) {
+                console.warn('Audit log failed (non-critical):', auditError);
+            }
+
+            toast.success(t('settings.emailUpdated') || 'Email updated successfully!');
             setIsEmailDialogOpen(false);
             setNewEmail("");
             setEmailPassword("");

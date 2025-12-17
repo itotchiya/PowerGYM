@@ -17,7 +17,8 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Dumbbell, Loader2, Building2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dumbbell, Loader2, Building2, AlertCircle } from "lucide-react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -25,6 +26,7 @@ export function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
     const { signIn } = useAuth();
     const navigate = useNavigate();
     const { t } = useTranslation();
@@ -44,13 +46,28 @@ export function LoginPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setError(""); // Clear previous error
 
         const result = await signIn(email, password);
 
         if (result.success) {
-            toast.success(t('auth.signedOutSuccess').replace('out', 'in'));
+            toast.success(t('auth.signedInSuccess') || 'Signed in successfully!');
         } else {
-            toast.error(result.error || t('auth.invalidCredentials'));
+            // Parse Firebase error codes for user-friendly messages
+            let errorMessage = t('auth.invalidCredentials') || 'Invalid email or password';
+
+            if (result.error?.includes('user-not-found') || result.error?.includes('wrong-password') || result.error?.includes('invalid-credential')) {
+                errorMessage = t('auth.invalidCredentials') || 'Invalid email or password. Please check your credentials and try again.';
+            } else if (result.error?.includes('too-many-requests')) {
+                errorMessage = t('auth.tooManyAttempts') || 'Too many failed attempts. Please try again later.';
+            } else if (result.error?.includes('network')) {
+                errorMessage = t('auth.networkError') || 'Network error. Please check your connection.';
+            } else if (result.error?.includes('user-disabled')) {
+                errorMessage = t('auth.accountDisabled') || 'This account has been disabled. Contact support.';
+            }
+
+            setError(errorMessage);
+            toast.error(errorMessage);
         }
 
         setLoading(false);
@@ -105,6 +122,14 @@ export function LoginPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Error Alert */}
+                        {error && (
+                            <Alert variant="destructive" className="animate-in fade-in-50 slide-in-from-top-1">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+
                         <div className="space-y-2">
                             <Label htmlFor="email">{t('auth.email')}</Label>
                             <Input
@@ -112,9 +137,10 @@ export function LoginPage() {
                                 type="email"
                                 placeholder="admin@gymmaster.com"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => { setEmail(e.target.value); setError(""); }}
                                 required
                                 disabled={loading}
+                                className={error ? "border-destructive" : ""}
                             />
                         </div>
                         <div className="space-y-2">
@@ -123,9 +149,10 @@ export function LoginPage() {
                                 id="password"
                                 placeholder="••••••••"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => { setPassword(e.target.value); setError(""); }}
                                 required
                                 disabled={loading}
+                                className={error ? "border-destructive" : ""}
                             />
                         </div>
                         <Button type="submit" className="w-full" disabled={loading}>
