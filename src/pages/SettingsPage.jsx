@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -9,6 +9,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Switch } from "@/components/ui/motion-switch";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -80,7 +81,7 @@ export function SettingsPage() {
     const [phoneOtpStep, setPhoneOtpStep] = useState('input'); // 'input' | 'verify'
     const [phoneOtpCode, setPhoneOtpCode] = useState("");
     const [verificationId, setVerificationId] = useState(null);
-    const [recaptchaVerifier, setRecaptchaVerifier] = useState(null);
+    const recaptchaVerifierRef = useRef(null);
 
     // Handle Login Password Change (Firebase Auth)
     const handlePasswordChange = async (e) => {
@@ -223,24 +224,59 @@ export function SettingsPage() {
 
     // Initialize Recaptcha when Phone Dialog opens
     useEffect(() => {
-        if (isPhoneDialogOpen && !recaptchaVerifier) {
-            try {
-                const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-                    'size': 'invisible',
-                    'callback': (response) => {
-                        // reCAPTCHA solved, allow signInWithPhoneNumber.
-                    },
-                    'expired-callback': () => {
-                        // Response expired. Ask user to solve reCAPTCHA again.
-                        toast.error(t('errors.recaptchaExpired'));
+        if (isPhoneDialogOpen) {
+            // Small delay to ensure DOM is ready
+            const initRecaptcha = () => {
+                // Clear any existing recaptcha first
+                if (recaptchaVerifierRef.current) {
+                    try {
+                        recaptchaVerifierRef.current.clear();
+                    } catch (e) {
+                        // Ignore
                     }
-                });
-                setRecaptchaVerifier(verifier);
-            } catch (error) {
-                console.error("Recaptcha init error:", error);
+                    recaptchaVerifierRef.current = null;
+                }
+
+                const container = document.getElementById('recaptcha-container');
+                if (container) {
+                    container.innerHTML = '';
+                }
+
+                try {
+                    recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                        'size': 'normal',
+                        'callback': (response) => {
+                            // reCAPTCHA solved - user can now click Send OTP
+                            console.log('reCAPTCHA verified');
+                        },
+                        'expired-callback': () => {
+                            toast.error(t('errors.recaptchaExpired'));
+                        }
+                    });
+                } catch (error) {
+                    console.error("Recaptcha init error:", error);
+                }
+            };
+
+            // Delay initialization to ensure DOM is mounted
+            const timer = setTimeout(initRecaptcha, 100);
+            return () => clearTimeout(timer);
+        } else {
+            // Cleanup when dialog closes
+            if (recaptchaVerifierRef.current) {
+                try {
+                    recaptchaVerifierRef.current.clear();
+                } catch (e) {
+                    // Ignore
+                }
+                recaptchaVerifierRef.current = null;
+            }
+            const container = document.getElementById('recaptcha-container');
+            if (container) {
+                container.innerHTML = '';
             }
         }
-    }, [isPhoneDialogOpen, recaptchaVerifier]);
+    }, [isPhoneDialogOpen]);
 
     // Handle Email Change - Step 1: Send OTP
     const handleEmailChangeRequest = async (e) => {
@@ -347,11 +383,11 @@ export function SettingsPage() {
         setIsLoading(true);
 
         try {
-            if (!recaptchaVerifier) {
+            if (!recaptchaVerifierRef.current) {
                 throw new Error("Recaptcha not initialized");
             }
 
-            const confirmationResult = await signInWithPhoneNumber(auth, newPhone.trim(), recaptchaVerifier);
+            const confirmationResult = await signInWithPhoneNumber(auth, newPhone.trim(), recaptchaVerifierRef.current);
             setVerificationId(confirmationResult);
             toast.success(t('settings.otpSent'));
             setPhoneOtpStep('verify');
@@ -359,9 +395,17 @@ export function SettingsPage() {
             console.error("Error sending phone OTP:", error);
             toast.error(t('errors.somethingWentWrong') + ": " + error.message);
             // Reset recaptcha if error
-            if (recaptchaVerifier) {
-                recaptchaVerifier.clear();
-                setRecaptchaVerifier(null);
+            if (recaptchaVerifierRef.current) {
+                try {
+                    recaptchaVerifierRef.current.clear();
+                } catch (e) {
+                    // Ignore
+                }
+                recaptchaVerifierRef.current = null;
+            }
+            const container = document.getElementById('recaptcha-container');
+            if (container) {
+                container.innerHTML = '';
             }
         } finally {
             setIsLoading(false);
@@ -906,19 +950,18 @@ export function SettingsPage() {
 
                     <form onSubmit={phoneOtpStep === 'input' ? handlePhoneChangeRequest : verifyPhoneOtpAndSave} className="space-y-4 py-4">
                         {phoneOtpStep === 'input' ? (
-                            <div className="space-y-2">
-                                <Label htmlFor="new-phone">{t('settings.newPhone')}</Label>
-                                <Input
-                                    id="new-phone"
-                                    type="tel"
-                                    placeholder="+212 600 000 000"
-                                    value={newPhone}
-                                    onChange={(e) => setNewPhone(e.target.value)}
-                                    required
-                                    disabled={isLoading}
-                                />
-                                <div id="recaptcha-container" className="mt-2"></div>
-                            </div>
+                            <>
+                                <div className="space-y-2">
+                                    <Label htmlFor="new-phone">{t('settings.newPhone')}</Label>
+                                    <PhoneInput
+                                        value={newPhone}
+                                        onChange={(phone) => setNewPhone(phone)}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                {/* reCAPTCHA will appear here */}
+                                <div id="recaptcha-container" className="flex justify-center mt-4"></div>
+                            </>
                         ) : (
                             <div className="space-y-2">
                                 <Label htmlFor="phone-otp">{t('settings.enterOtpCode')}</Label>
@@ -957,7 +1000,7 @@ export function SettingsPage() {
                     </form>
                 </DialogContent>
             </Dialog>
-        </DashboardLayout>
+
+        </DashboardLayout >
     );
 }
-
