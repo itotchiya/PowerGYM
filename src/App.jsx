@@ -22,6 +22,7 @@ import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
 import { PlansPage } from '@/pages/PlansPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
+import { AuditLogPage } from '@/pages/AuditLogPage';
 
 function App() {
   const { user, userProfile, session, loading } = useAuth();
@@ -164,6 +165,15 @@ function App() {
           element={
             <ProtectedRoute requireOwner>
               <PlansPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/audit-log"
+          element={
+            <ProtectedRoute requireOwner>
+              <AuditLogPage />
             </ProtectedRoute>
           }
         />

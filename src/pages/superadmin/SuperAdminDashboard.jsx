@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { DashboardSkeleton } from '@/components/skeletons/PageSkeletons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -220,7 +221,7 @@ export function SuperAdminDashboard() {
                     </CardHeader>
                     <CardContent>
                         {loading ? (
-                            <p className="text-muted-foreground">Loading gyms...</p>
+                            <DashboardSkeleton />
                         ) : gyms.length === 0 ? (
                             <p className="text-muted-foreground">No gyms added yet. Click "Add Gym" to get started.</p>
                         ) : (

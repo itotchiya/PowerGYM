@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { GymRequestsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -132,9 +133,7 @@ export function GymRequestsPage() {
                     </CardHeader>
                     <CardContent>
                         {loading ? (
-                            <div className="flex justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                            </div>
+                            <GymRequestsSkeleton />
                         ) : requests.length === 0 ? (
                             <div className="text-center py-12 text-muted-foreground">
                                 <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />

@@ -5,7 +5,8 @@ import {
     onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 const AuthContext = createContext({});
 
@@ -64,6 +65,15 @@ export function AuthProvider({ children }) {
     const signIn = async (email, password) => {
         try {
             const result = await signInWithEmailAndPassword(auth, email, password);
+
+            // Sync email from Firebase Auth to Firestore (in case it was changed via verification)
+            try {
+                const syncUserEmail = httpsCallable(functions, 'syncUserEmail');
+                await syncUserEmail();
+            } catch (syncError) {
+                console.warn('Email sync failed (non-critical):', syncError);
+            }
+
             return { success: true, user: result.user };
         } catch (error) {
             return { success: false, error: error.message };

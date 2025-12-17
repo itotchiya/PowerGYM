@@ -123,3 +123,47 @@ exports.verifyEmailOTP = onCall(async (request) => {
         throw new HttpsError("internal", "Verification failed.");
     }
 });
+
+/**
+ * syncUserEmail - Syncs Firebase Auth email to Firestore user document
+ * Called on login to ensure Firestore stays in sync after email verification
+ */
+exports.syncUserEmail = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const authEmail = request.auth.token.email;
+
+    if (!authEmail) {
+        throw new HttpsError("failed-precondition", "No email found in auth token.");
+    }
+
+    try {
+        const userRef = admin.firestore().collection("users").doc(uid);
+        const userDoc = await userRef.get();
+
+        if (!userDoc.exists) {
+            // User document doesn't exist, nothing to sync
+            return { success: true, synced: false, message: "User document not found" };
+        }
+
+        const currentEmail = userDoc.data().email;
+
+        // Only update if email has changed
+        if (currentEmail !== authEmail) {
+            await userRef.update({
+                email: authEmail,
+                emailSyncedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`Synced email for user ${uid}: ${currentEmail} -> ${authEmail}`);
+            return { success: true, synced: true, email: authEmail };
+        }
+
+        return { success: true, synced: false, message: "Email already in sync" };
+    } catch (error) {
+        console.error("Error syncing email:", error);
+        throw new HttpsError("internal", "Failed to sync email.");
+    }
+});

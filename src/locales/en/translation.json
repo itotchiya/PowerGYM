@@ -61,7 +61,8 @@
         "plans": "Plans",
         "plansFees": "Plans & Fees",
         "settings": "Settings",
-        "notifications": "Notifications"
+        "notifications": "Notifications",
+        "auditLog": "Audit Log"
     },
     "auth": {
         "login": "Login",
@@ -446,7 +447,16 @@
         "loadError": "Failed to load deleted members",
         "restoreError": "Failed to restore member",
         "permanentlyDeleted": "Member permanently deleted",
-        "deleteError": "Failed to delete member permanently"
+        "deleteError": "Failed to delete member permanently",
+        "selectAll": "Select All",
+        "deselectAll": "Deselect All",
+        "selectedCount": "{{count}} selected",
+        "restoreSelected": "Restore Selected ({{count}})",
+        "deleteSelected": "Delete Permanently ({{count}})",
+        "bulkRestoreConfirmation": "Are you sure you want to restore {{count}} members?",
+        "bulkDeleteConfirmation": "Are you sure you want to permanently delete {{count}} members? This action cannot be undone!",
+        "bulkRestoreSuccess": "Successfully restored {{count}} members",
+        "bulkDeleteSuccess": "Successfully deleted {{count}} members permanently"
     },
     "superadmin": {
         "dashboard": "Super Admin Dashboard",
@@ -511,6 +521,36 @@
         "navigation": "Navigation",
         "members": "Members",
         "noResults": "No results found"
+    },
+    "auditLog": {
+        "title": "Audit Log",
+        "subtitle": "Complete history of all changes",
+        "filters": "Filters",
+        "entityType": "Entity Type",
+        "actionType": "Action Type",
+        "dateRange": "Date Range",
+        "user": "User",
+        "search": "Search by name...",
+        "timestamp": "Date & Time",
+        "changes": "Changes",
+        "noLogs": "No audit logs found",
+        "loadError": "Failed to load audit logs",
+        "changeDetails": "Change Details",
+        "field": "Field",
+        "oldValue": "Previous Value",
+        "newValue": "New Value",
+        "actions": {
+            "created": "Created",
+            "updated": "Updated",
+            "deleted": "Deleted",
+            "restored": "Restored",
+            "permanently_deleted": "Permanently Deleted"
+        },
+        "entities": {
+            "member": "Member",
+            "plan": "Plan",
+            "gym_settings": "Gym Settings"
+        }
     },
     "errors": {
         "requiredField": "This field is required",

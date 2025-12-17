@@ -26,6 +26,12 @@ service cloud.firestore {
       }
       match /plans/{planId} { allow read, write: if request.auth != null; }
       match /warnings/{warningId} { allow read, write: if request.auth != null; }
+      
+      // Audit Logs: Allow create, read but NOT update/delete to maintain integrity
+      match /auditLogs/{logId} {
+        allow read, create: if request.auth != null;
+        allow update, delete: if false;
+      }
     }
 
     // Users: Allow any authenticated user to read/write (simplified for now to fix superadmin updates)

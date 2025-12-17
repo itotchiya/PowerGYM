@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ThemeSwitch } from '@/components/ui/theme-switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import {
     Dialog,
@@ -138,10 +139,10 @@ export function TopHeader({ hideBorder = false }) {
                             className="relative w-full justify-start text-sm text-muted-foreground bg-muted/50 border-0 hover:bg-muted"
                             onClick={() => setSearchOpen(true)}
                         >
-                            <Search className="mr-2 h-4 w-4" />
+                            <Search className="mr-2 rtl:ml-2 rtl:mr-0 h-4 w-4" />
                             <span>{t('header.searchPlaceholder')}</span>
-                            <kbd className="pointer-events-none absolute right-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-                                <span className="text-xs">⌘</span>K
+                            <kbd className="pointer-events-none absolute right-2 rtl:right-auto rtl:left-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+                                <span className="text-xs">Ctrl</span>+<span className="text-xs">K</span>
                             </kbd>
                         </Button>
                     </div>
@@ -240,9 +241,8 @@ export function TopHeader({ hideBorder = false }) {
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="switch-password">{t('auth.password')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="switch-password"
-                                type="password"
                                 placeholder={t('auth.password')}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}

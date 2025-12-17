@@ -42,12 +42,6 @@
         "show": "Afficher",
         "ofCount": "sur {{count}}",
         "optional": "Optionnel",
-        "yes": "Oui",
-        "no": "Non",
-        "change": "Modifier",
-        "saving": "Enregistrement...",
-        "save": "Enregistrer",
-        "cancel": "Annuler",
         "processing": "Traitement..."
     },
     "nav": {
@@ -60,7 +54,8 @@
         "plans": "Plans",
         "plansFees": "Plans & Tarifs",
         "settings": "Paramètres",
-        "notifications": "Notifications"
+        "notifications": "Notifications",
+        "auditLog": "Journal d'audit"
     },
     "auth": {
         "login": "Connexion",
@@ -275,8 +270,7 @@
         "enterCni": "Entrez le numéro d'identité",
         "cniNumber": "Numéro CNI/ID",
         "description": "Description",
-        "enterDescription": "Entrez des notes ou une description sur ce membre...",
-        "fullyPaid": "Entièrement payé"
+        "enterDescription": "Entrez des notes ou une description sur ce membre..."
     },
     "plans": {
         "title": "Plans & Tarifs",
@@ -445,7 +439,16 @@
         "loadError": "Échec du chargement des membres supprimés",
         "restoreError": "Échec de la restauration du membre",
         "permanentlyDeleted": "Membre supprimé définitivement",
-        "deleteError": "Échec de la suppression définitive du membre"
+        "deleteError": "Échec de la suppression définitive du membre",
+        "selectAll": "Tout sélectionner",
+        "deselectAll": "Tout désélectionner",
+        "selectedCount": "{{count}} sélectionné(s)",
+        "restoreSelected": "Restaurer la sélection ({{count}})",
+        "deleteSelected": "Supprimer définitivement ({{count}})",
+        "bulkRestoreConfirmation": "Êtes-vous sûr de vouloir restaurer {{count}} membres ?",
+        "bulkDeleteConfirmation": "Êtes-vous sûr de vouloir supprimer définitivement {{count}} membres ? Cette action est irréversible !",
+        "bulkRestoreSuccess": "{{count}} membres restaurés avec succès",
+        "bulkDeleteSuccess": "{{count}} membres supprimés définitivement avec succès"
     },
     "superadmin": {
         "dashboard": "Tableau de bord Super Admin",
@@ -510,5 +513,35 @@
         "navigation": "Navigation",
         "members": "Membres",
         "noResults": "Aucun résultat trouvé"
+    },
+    "auditLog": {
+        "title": "Journal d'audit",
+        "subtitle": "Historique complet de tous les changements",
+        "filters": "Filtres",
+        "entityType": "Type d'entité",
+        "actionType": "Type d'action",
+        "dateRange": "Période",
+        "user": "Utilisateur",
+        "search": "Rechercher par nom...",
+        "timestamp": "Date et heure",
+        "changes": "Modifications",
+        "noLogs": "Aucun journal d'audit trouvé",
+        "loadError": "Échec du chargement des journaux d'audit",
+        "changeDetails": "Détails des modifications",
+        "field": "Champ",
+        "oldValue": "Ancienne valeur",
+        "newValue": "Nouvelle valeur",
+        "actions": {
+            "created": "Créé",
+            "updated": "Modifié",
+            "deleted": "Supprimé",
+            "restored": "Restauré",
+            "permanently_deleted": "Supprimé définitivement"
+        },
+        "entities": {
+            "member": "Membre",
+            "plan": "Plan",
+            "gym_settings": "Paramètres du gym"
+        }
     }
 }

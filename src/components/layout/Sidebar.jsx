@@ -12,7 +12,8 @@ import {
     Clock,
     Dumbbell,
     Settings,
-    Inbox
+    Inbox,
+    FileText
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -34,6 +35,7 @@ export function Sidebar() {
             { name: t('nav.warnings'), href: '/warnings', icon: AlertCircle, ownerOnly: true },
             { name: t('nav.deletedMembers'), href: '/deleted', icon: Trash2, ownerOnly: true },
             { name: t('nav.plansFees'), href: '/plans', icon: CreditCard, ownerOnly: true },
+            { name: t('nav.auditLog'), href: '/audit-log', icon: FileText, ownerOnly: true },
         ],
     };
 

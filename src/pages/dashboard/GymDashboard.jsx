@@ -17,6 +17,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Ba
 import { PlanDistributionChart } from '@/components/dashboard/PlanDistributionChart';
 import { MemberStatusChart } from '@/components/dashboard/MemberStatusChart';
 
+import { DashboardSkeleton } from '@/components/skeletons/PageSkeletons';
+
 const COLORS = {
     active: '#10b981',
     expired: '#ef4444',
@@ -258,12 +260,7 @@ export function GymDashboard() {
     if (loading) {
         return (
             <DashboardLayout>
-                <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
-                    </div>
-                </div>
+                <DashboardSkeleton />
             </DashboardLayout>
         );
     }

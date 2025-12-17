@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
@@ -19,10 +20,11 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
+import { createGymSettingsAuditLog, AUDIT_ACTIONS } from "@/lib/auditLog";
 import { ChevronRight, Lock, Building, Wallet, ShieldCheck, PenSquare, Globe, Moon, Mail, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -158,6 +160,14 @@ export function SettingsPage() {
                 ownerPasswordHash: newHash
             });
 
+            // Log to audit
+            await createGymSettingsAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                AUDIT_ACTIONS.UPDATED,
+                [{ field: 'ownerPassword', oldValue: null, newValue: 'updated' }]
+            );
+
             toast.success(t('settings.passwordUpdated'));
             setIsOwnerPasswordDialogOpen(false);
             setOwnerPasswordForm({ current: "", new: "", confirm: "" });
@@ -283,15 +293,22 @@ export function SettingsPage() {
             const credential = EmailAuthProvider.credential(user.email, emailPassword);
             await reauthenticateWithCredential(auth.currentUser, credential);
 
-            // Update Firebase Auth email (this changes the login email)
-            await updateEmail(auth.currentUser, newEmail.trim());
+            // Send verification to the NEW email address
+            // User must click the link in the new email to complete the change
+            await verifyBeforeUpdateEmail(auth.currentUser, newEmail.trim());
 
-            // Also update Firestore profile
-            await updateDoc(doc(db, 'users', user.uid), {
-                email: newEmail.trim()
-            });
+            // Note: Firestore update will happen when user verifies the new email
+            // For now, we just notify the user to check their new email
 
-            toast.success(t('settings.emailUpdated'));
+            // Log to audit (email change pending verification)
+            await createGymSettingsAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                AUDIT_ACTIONS.UPDATED,
+                [{ field: 'ownerEmail', oldValue: userProfile.email, newValue: `${newEmail.trim()} (pending verification)` }]
+            );
+
+            toast.success(t('settings.emailVerificationSent') || 'Verification email sent! Please check your new email inbox and click the link to complete the change.');
             setIsEmailDialogOpen(false);
             setNewEmail("");
             setEmailPassword("");
@@ -363,6 +380,14 @@ export function SettingsPage() {
             await updateDoc(doc(db, 'users', user.uid), {
                 phone: newPhone.trim()
             });
+
+            // Log to audit
+            await createGymSettingsAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                AUDIT_ACTIONS.UPDATED,
+                [{ field: 'ownerPhone', oldValue: userProfile.phone, newValue: newPhone.trim() }]
+            );
 
             toast.success(t('settings.phoneUpdated'));
             setIsPhoneDialogOpen(false);
@@ -615,9 +640,8 @@ export function SettingsPage() {
                     <form onSubmit={handlePasswordChange} className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="current-pass">{t('settings.currentPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="current-pass"
-                                type="password"
                                 placeholder="••••••••"
                                 value={passwordForm.current}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
@@ -626,9 +650,8 @@ export function SettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="new-pass">{t('settings.newPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="new-pass"
-                                type="password"
                                 placeholder={t('settings.passwordTooShort', { min: 6 })}
                                 value={passwordForm.new}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
@@ -637,9 +660,8 @@ export function SettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="confirm-pass">{t('settings.confirmNewPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="confirm-pass"
-                                type="password"
                                 placeholder={t('settings.confirmNewPassword')}
                                 value={passwordForm.confirm}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
@@ -677,9 +699,8 @@ export function SettingsPage() {
                     <form onSubmit={handleOwnerPasswordChange} className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="owner-current-pass">{t('settings.currentPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="owner-current-pass"
-                                type="password"
                                 placeholder="••••••••"
                                 value={ownerPasswordForm.current}
                                 onChange={(e) => setOwnerPasswordForm({ ...ownerPasswordForm, current: e.target.value })}
@@ -688,9 +709,8 @@ export function SettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="owner-new-pass">{t('settings.newPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="owner-new-pass"
-                                type="password"
                                 placeholder={t('settings.passwordTooShort', { min: 4 })}
                                 value={ownerPasswordForm.new}
                                 onChange={(e) => setOwnerPasswordForm({ ...ownerPasswordForm, new: e.target.value })}
@@ -699,9 +719,8 @@ export function SettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="owner-confirm-pass">{t('settings.confirmNewPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="owner-confirm-pass"
-                                type="password"
                                 placeholder={t('settings.confirmNewPassword')}
                                 value={ownerPasswordForm.confirm}
                                 onChange={(e) => setOwnerPasswordForm({ ...ownerPasswordForm, confirm: e.target.value })}
@@ -817,9 +836,8 @@ export function SettingsPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email-password">{t('settings.currentPassword')}</Label>
-                                    <Input
+                                    <PasswordInput
                                         id="email-password"
-                                        type="password"
                                         placeholder="••••••••"
                                         value={emailPassword}
                                         onChange={(e) => setEmailPassword(e.target.value)}

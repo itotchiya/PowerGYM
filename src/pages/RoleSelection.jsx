@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { doc, updateDoc } from "firebase/firestore";
@@ -182,9 +183,8 @@ export function RoleSelection() {
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="verify-password">Password</Label>
-                                <Input
+                                <PasswordInput
                                     id="verify-password"
-                                    type="password"
                                     value={passwordInput}
                                     onChange={(e) => setPasswordInput(e.target.value)}
                                     placeholder="Enter your password"
@@ -215,9 +215,8 @@ export function RoleSelection() {
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="setup-password">Create Password</Label>
-                                <Input
+                                <PasswordInput
                                     id="setup-password"
-                                    type="password"
                                     value={passwordInput}
                                     onChange={(e) => setPasswordInput(e.target.value)}
                                     placeholder="Minimum 6 characters"

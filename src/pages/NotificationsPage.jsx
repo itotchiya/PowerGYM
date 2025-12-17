@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, onSnapshot, limit, doc, updateDoc, serverTimestamp, where } from "firebase/firestore";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { NotificationsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -291,9 +292,7 @@ export function NotificationsPage() {
                 />
 
                 {loading ? (
-                    <div className="flex justify-center p-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
+                    <NotificationsSkeleton />
                 ) : notifications.length === 0 ? (
                     <div className="bg-muted/30 border-dashed border-2 rounded-xl p-12 text-center text-muted-foreground">
                         <div className="flex justify-center mb-4">

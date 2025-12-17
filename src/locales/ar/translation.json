@@ -42,12 +42,6 @@
         "show": "عرض",
         "ofCount": "من {{count}}",
         "optional": "اختياري",
-        "yes": "نعم",
-        "no": "لا",
-        "change": "تغيير",
-        "saving": "جاري الحفظ...",
-        "save": "حفظ",
-        "cancel": "إلغاء",
         "processing": "جارٍ المعالجة..."
     },
     "nav": {
@@ -60,7 +54,8 @@
         "plans": "الخطط",
         "plansFees": "الخطط والرسوم",
         "settings": "الإعدادات",
-        "notifications": "الإشعارات"
+        "notifications": "الإشعارات",
+        "auditLog": "سجل التدقيق"
     },
     "auth": {
         "login": "تسجيل الدخول",
@@ -275,8 +270,7 @@
         "enterCni": "أدخل رقم الهوية",
         "cniNumber": "رقم الهوية",
         "description": "الوصف",
-        "enterDescription": "أدخل أي ملاحظات أو وصف حول هذا العضو...",
-        "fullyPaid": "مدفوع بالكامل"
+        "enterDescription": "أدخل أي ملاحظات أو وصف حول هذا العضو..."
     },
     "plans": {
         "title": "الخطط والرسوم",
@@ -445,7 +439,16 @@
         "loadError": "فشل تحميل الأعضاء المحذوفين",
         "restoreError": "فشل استعادة العضو",
         "permanentlyDeleted": "تم حذف العضو نهائياً",
-        "deleteError": "فشل الحذف النهائي للعضو"
+        "deleteError": "فشل الحذف النهائي للعضو",
+        "selectAll": "تحديد الكل",
+        "deselectAll": "إلغاء تحديد الكل",
+        "selectedCount": "{{count}} محدد",
+        "restoreSelected": "استعادة المحدد ({{count}})",
+        "deleteSelected": "حذف نهائي ({{count}})",
+        "bulkRestoreConfirmation": "هل أنت متأكد من استعادة {{count}} أعضاء؟",
+        "bulkDeleteConfirmation": "هل أنت متأكد من حذف {{count}} أعضاء نهائياً؟ لا يمكن التراجع عن هذا الإجراء!",
+        "bulkRestoreSuccess": "تمت استعادة {{count}} أعضاء بنجاح",
+        "bulkDeleteSuccess": "تم حذف {{count}} أعضاء نهائياً بنجاح"
     },
     "superadmin": {
         "dashboard": "لوحة تحكم المسؤول الأعلى",
@@ -510,5 +513,35 @@
         "navigation": "التنقل",
         "members": "الأعضاء",
         "noResults": "لا توجد نتائج"
+    },
+    "auditLog": {
+        "title": "سجل التدقيق",
+        "subtitle": "السجل الكامل لجميع التغييرات",
+        "filters": "الفلاتر",
+        "entityType": "نوع الكيان",
+        "actionType": "نوع الإجراء",
+        "dateRange": "نطاق التاريخ",
+        "user": "المستخدم",
+        "search": "البحث بالاسم...",
+        "timestamp": "التاريخ والوقت",
+        "changes": "التغييرات",
+        "noLogs": "لا توجد سجلات تدقيق",
+        "loadError": "فشل تحميل سجلات التدقيق",
+        "changeDetails": "تفاصيل التغييرات",
+        "field": "الحقل",
+        "oldValue": "القيمة السابقة",
+        "newValue": "القيمة الجديدة",
+        "actions": {
+            "created": "تم الإنشاء",
+            "updated": "تم التعديل",
+            "deleted": "تم الحذف",
+            "restored": "تمت الاستعادة",
+            "permanently_deleted": "تم الحذف نهائياً"
+        },
+        "entities": {
+            "member": "عضو",
+            "plan": "خطة",
+            "gym_settings": "إعدادات النادي"
+        }
     }
 }

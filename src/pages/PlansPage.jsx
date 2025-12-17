@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { PlansSkeleton } from '@/components/skeletons/PageSkeletons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,9 +43,10 @@ import {
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { DollarSign, Plus, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { createPlanAuditLog, AUDIT_ACTIONS } from '@/lib/auditLog';
 
 export function PlansPage() {
-    const { userProfile } = useAuth();
+    const { user, userProfile } = useAuth();
     const { t } = useTranslation();
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -114,7 +116,18 @@ export function PlansPage() {
                 createdAt: serverTimestamp(),
             };
 
-            await addDoc(collection(db, `gyms/${userProfile.gymId}/plans`), newPlan);
+            const docRef = await addDoc(collection(db, `gyms/${userProfile.gymId}/plans`), newPlan);
+
+            // Log to audit
+            await createPlanAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                docRef.id,
+                newPlan.name,
+                AUDIT_ACTIONS.CREATED,
+                [],
+                newPlan
+            );
 
             toast.success('Plan added successfully');
             setShowAddDialog(false);
@@ -147,6 +160,22 @@ export function PlansPage() {
                 description: planForm.description,
             });
 
+            // Log to audit
+            await createPlanAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                selectedPlan.id,
+                planForm.name,
+                AUDIT_ACTIONS.UPDATED,
+                [], // Use calculateChanges if needed to track specific field changes, passing empty for now
+                {
+                    name: planForm.name,
+                    price: Number(planForm.price),
+                    duration: totalDays,
+                    description: planForm.description
+                }
+            );
+
             toast.success('Plan updated successfully');
             setShowEditDialog(false);
             setSelectedPlan(null);
@@ -164,6 +193,17 @@ export function PlansPage() {
         try {
             const planRef = doc(db, `gyms/${userProfile.gymId}/plans`, selectedPlan.id);
             await deleteDoc(planRef);
+
+            // Log to audit
+            await createPlanAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                selectedPlan.id,
+                selectedPlan.name,
+                AUDIT_ACTIONS.DELETED,
+                [],
+                selectedPlan
+            );
 
             toast.success('Plan deleted successfully');
             setShowDeleteDialog(false);
@@ -203,12 +243,7 @@ export function PlansPage() {
     if (loading) {
         return (
             <DashboardLayout>
-                <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
-                    </div>
-                </div>
+                <PlansSkeleton />
             </DashboardLayout>
         );
     }

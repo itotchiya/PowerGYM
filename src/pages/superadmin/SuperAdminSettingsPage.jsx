@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { Switch } from "@/components/ui/motion-switch";
@@ -386,9 +387,8 @@ export function SuperAdminSettingsPage() {
                     <form onSubmit={handlePasswordChange} className="space-y-4 py-4">
                         <div className="space-y-2">
                             <Label htmlFor="current-pass">{t('settings.currentPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="current-pass"
-                                type="password"
                                 value={passwordForm.current}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
                                 required
@@ -396,9 +396,8 @@ export function SuperAdminSettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="new-pass">{t('settings.newPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="new-pass"
-                                type="password"
                                 placeholder={t('settings.passwordTooShort', { min: 6 })}
                                 value={passwordForm.new}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })}
@@ -407,9 +406,8 @@ export function SuperAdminSettingsPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="confirm-pass">{t('settings.confirmNewPassword')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="confirm-pass"
-                                type="password"
                                 placeholder={t('settings.confirmNewPassword')}
                                 value={passwordForm.confirm}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}

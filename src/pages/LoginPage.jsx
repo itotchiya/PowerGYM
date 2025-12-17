@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,9 +119,8 @@ export function LoginPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="password">{t('auth.password')}</Label>
-                            <Input
+                            <PasswordInput
                                 id="password"
-                                type="password"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -149,13 +149,6 @@ export function LoginPage() {
                         </Button>
                     </div>
 
-                    <div className="mt-6 p-4 bg-muted rounded-lg">
-                        <p className="text-sm font-semibold mb-2">Demo Credentials:</p>
-                        <div className="text-xs space-y-1 text-muted-foreground">
-                            <p><strong>{t('roles.superAdmin')}:</strong> admin@gymmaster.com / SuperAdmin123!</p>
-                            <p><strong>Gym Client:</strong> owner@gymtest.com / GymOwner123!</p>
-                        </div>
-                    </div>
                 </CardContent>
             </Card>
 

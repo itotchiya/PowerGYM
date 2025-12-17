@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { TableSkeleton } from '@/components/skeletons/PageSkeletons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
     TableBody,
@@ -32,16 +34,20 @@ import { collection, getDocs, query, where, updateDoc, deleteDoc, doc } from 'fi
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Trash2, RotateCcw, MoreVertical, AlertCircle } from 'lucide-react';
+import { createMemberAuditLog, AUDIT_ACTIONS } from '@/lib/auditLog';
 
 export function DeletedMembersPage() {
     const navigate = useNavigate();
-    const { userProfile } = useAuth();
+    const { user, userProfile } = useAuth();
     const { t } = useTranslation();
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showRestoreDialog, setShowRestoreDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [selectedMember, setSelectedMember] = useState(null);
+    const [selectedMembers, setSelectedMembers] = useState([]);
+    const [showBulkRestoreDialog, setShowBulkRestoreDialog] = useState(false);
+    const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
     const fetchData = async () => {
         try {
@@ -84,6 +90,15 @@ export function DeletedMembersPage() {
                 deletedAt: null
             });
 
+            // Log to audit
+            await createMemberAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                selectedMember.id,
+                `${selectedMember.firstName} ${selectedMember.lastName}`,
+                AUDIT_ACTIONS.RESTORED
+            );
+
             toast.success(t('members.memberRestored'));
             setShowRestoreDialog(false);
             setSelectedMember(null);
@@ -99,6 +114,17 @@ export function DeletedMembersPage() {
         if (!selectedMember) return;
 
         try {
+            // Log to audit before deletion
+            await createMemberAuditLog(
+                userProfile.gymId,
+                { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                selectedMember.id,
+                `${selectedMember.firstName} ${selectedMember.lastName}`,
+                AUDIT_ACTIONS.PERMANENTLY_DELETED,
+                [],
+                { email: selectedMember.email, phone: selectedMember.phone }
+            );
+
             const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
             await deleteDoc(memberRef);
 
@@ -122,15 +148,98 @@ export function DeletedMembersPage() {
         setShowDeleteDialog(true);
     };
 
+    // Selection handlers
+    const handleSelectMember = (memberId) => {
+        setSelectedMembers(prev =>
+            prev.includes(memberId)
+                ? prev.filter(id => id !== memberId)
+                : [...prev, memberId]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedMembers.length === members.length) {
+            setSelectedMembers([]);
+        } else {
+            setSelectedMembers(members.map(m => m.id));
+        }
+    };
+
+    const isAllSelected = () => {
+        return members.length > 0 && selectedMembers.length === members.length;
+    };
+
+    // Bulk restore
+    const handleBulkRestore = async () => {
+        try {
+            const restorePromises = selectedMembers.map(async (memberId) => {
+                const member = members.find(m => m.id === memberId);
+                const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+                await updateDoc(memberRef, {
+                    isDeleted: false,
+                    deletedAt: null
+                });
+                // Log each restore
+                if (member) {
+                    await createMemberAuditLog(
+                        userProfile.gymId,
+                        { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                        memberId,
+                        `${member.firstName} ${member.lastName}`,
+                        AUDIT_ACTIONS.RESTORED
+                    );
+                }
+            });
+
+            await Promise.all(restorePromises);
+
+            toast.success(t('deleted.bulkRestoreSuccess', { count: selectedMembers.length }));
+            setShowBulkRestoreDialog(false);
+            setSelectedMembers([]);
+            fetchData();
+        } catch (error) {
+            console.error('Error bulk restoring members:', error);
+            toast.error(t('deleted.restoreError'));
+        }
+    };
+
+    // Bulk permanent delete
+    const handleBulkPermanentDelete = async () => {
+        try {
+            const deletePromises = selectedMembers.map(async (memberId) => {
+                const member = members.find(m => m.id === memberId);
+                // Log before deletion
+                if (member) {
+                    await createMemberAuditLog(
+                        userProfile.gymId,
+                        { uid: user.uid, name: userProfile.name, subrole: userProfile.subrole },
+                        memberId,
+                        `${member.firstName} ${member.lastName}`,
+                        AUDIT_ACTIONS.PERMANENTLY_DELETED,
+                        [],
+                        { email: member.email, phone: member.phone }
+                    );
+                }
+                const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+                await deleteDoc(memberRef);
+            });
+
+            await Promise.all(deletePromises);
+
+            toast.success(t('deleted.bulkDeleteSuccess', { count: selectedMembers.length }));
+            setShowBulkDeleteDialog(false);
+            setSelectedMembers([]);
+            fetchData();
+        } catch (error) {
+            console.error('Error bulk deleting members:', error);
+            toast.error(t('deleted.deleteError'));
+        }
+    };
+
     if (loading) {
         return (
             <DashboardLayout>
-                <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                        <p className="mt-4 text-muted-foreground">{t('common.loading')}</p>
-                    </div>
-                </div>
+                <TableSkeleton />
             </DashboardLayout>
         );
     }
@@ -150,9 +259,34 @@ export function DeletedMembersPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>
-                            {t('deleted.deletedCount', { count: members.length })}
-                        </CardTitle>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>
+                                {t('deleted.deletedCount', { count: members.length })}
+                            </CardTitle>
+                            {selectedMembers.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="secondary">
+                                        {t('deleted.selectedCount', { count: selectedMembers.length })}
+                                    </Badge>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setShowBulkRestoreDialog(true)}
+                                    >
+                                        <RotateCcw className="mr-2 h-4 w-4" />
+                                        {t('deleted.restoreSelected', { count: selectedMembers.length })}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => setShowBulkDeleteDialog(true)}
+                                    >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        {t('deleted.deleteSelected', { count: selectedMembers.length })}
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {members.length === 0 ? (
@@ -164,6 +298,13 @@ export function DeletedMembersPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead className="w-12">
+                                            <Checkbox
+                                                checked={isAllSelected()}
+                                                onCheckedChange={handleSelectAll}
+                                                aria-label="Select all"
+                                            />
+                                        </TableHead>
                                         <TableHead>{t('members.fullName')}</TableHead>
                                         <TableHead>{t('members.email')}</TableHead>
                                         <TableHead>{t('members.phone')}</TableHead>
@@ -174,6 +315,13 @@ export function DeletedMembersPage() {
                                 <TableBody>
                                     {members.map(member => (
                                         <TableRow key={member.id}>
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selectedMembers.includes(member.id)}
+                                                    onCheckedChange={() => handleSelectMember(member.id)}
+                                                    aria-label={`Select ${member.firstName} ${member.lastName}`}
+                                                />
+                                            </TableCell>
                                             <TableCell className="font-medium">
                                                 {member.firstName} {member.lastName}
                                             </TableCell>
@@ -261,6 +409,58 @@ export function DeletedMembersPage() {
                         </Button>
                         <Button type="button" variant="destructive" onClick={handlePermanentDelete}>
                             {t('deleted.deletePermanently')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Restore Confirmation Dialog */}
+            <Dialog open={showBulkRestoreDialog} onOpenChange={setShowBulkRestoreDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('deleted.restoreSelected', { count: selectedMembers.length })}</DialogTitle>
+                        <DialogDescription>
+                            {t('deleted.bulkRestoreConfirmation', { count: selectedMembers.length })}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setShowBulkRestoreDialog(false)}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={handleBulkRestore}>
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            {t('deleted.restoreSelected', { count: selectedMembers.length })}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Permanent Delete Confirmation Dialog */}
+            <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('deleted.deleteSelected', { count: selectedMembers.length })}</DialogTitle>
+                        <DialogDescription>
+                            <div className="space-y-3">
+                                <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                                    <div>
+                                        <p className="font-semibold text-destructive">{t('deleted.warning')}</p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            {t('deleted.bulkDeleteConfirmation', { count: selectedMembers.length })}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setShowBulkDeleteDialog(false)}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" variant="destructive" onClick={handleBulkPermanentDelete}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {t('deleted.deleteSelected', { count: selectedMembers.length })}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
