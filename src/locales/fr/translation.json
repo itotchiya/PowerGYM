@@ -270,7 +270,9 @@
         "enterCni": "Entrez le numéro d'identité",
         "cniNumber": "Numéro CNI/ID",
         "description": "Description",
-        "enterDescription": "Entrez des notes ou une description sur ce membre..."
+        "enterDescription": "Entrez des notes ou une description sur ce membre...",
+        "insuranceValidUntil": "Assurance valide jusqu'au",
+        "expiresOn": "Expire le"
     },
     "plans": {
         "title": "Plans & Tarifs",

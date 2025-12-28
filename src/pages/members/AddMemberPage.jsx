@@ -48,6 +48,7 @@ export function AddMemberPage() {
 
         // Step 2: Plan
         planId: '',
+        startDate: new Date().toISOString().split('T')[0],
         isFullyPaid: true,
         amountPaid: '',
         includeInsurance: true,
@@ -203,12 +204,13 @@ export function AddMemberPage() {
                 return;
             }
 
+            const subStartDate = new Date(formData.startDate);
             const initialSubscription = {
                 planId: formData.planId,
                 planName: selectedPlan.name,
                 price: planPrice,
-                startDate: new Date().toISOString(),
-                endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
+                startDate: subStartDate.toISOString(),
+                endDate: new Date(subStartDate.getTime() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
             };
 
             // Upload CNI file if provided
@@ -227,33 +229,47 @@ export function AddMemberPage() {
                 }
             }
 
-            const newMember = {
-                memberId: newMemberId,
+            // Calculate insurance expiry if included
+            let insuranceExpiryDate = null;
+            if (formData.includeInsurance) {
+                const expiryDate = new Date(subStartDate);
+                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+                insuranceExpiryDate = expiryDate.toISOString();
+            }
+
+            // Create Member Document
+            const memberData = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
-                cniId: formData.cniId || '',
-                cniDocumentUrl: cniDocumentUrl,
-                email: formData.email || '',
                 phone: formData.phone,
+                email: formData.email || '',
+                cniId: formData.cniId || '',
                 description: formData.description || '',
+                joinDate: subStartDate.toISOString(),
+                memberId: newMemberId,
+                gymId: userProfile.gymId,
+                status: 'active',
+                cniDocumentUrl,
+                insuranceStatus: formData.includeInsurance ? 'active' : 'unpaid',
+                insuranceExpiryDate,
+                insuranceFee: formData.includeInsurance ? Number(formData.insuranceFee) : 0,
                 currentSubscription: initialSubscription,
                 subscriptionHistory: [initialSubscription],
+                totalPaid: amountPaid,
+                outstandingBalance: outstandingBalance,
                 payments: [{
                     amount: amountPaid,
-                    type: 'initial_registration',
                     date: new Date().toISOString(),
-                    note: `Initial registration`
+                    type: 'INITIAL_PAYMENT',
+                    note: 'Initial membership and subscription payment'
                 }],
-                insuranceStatus: formData.includeInsurance ? 'active' : 'none',
-                insuranceFee: insuranceFee,
                 warnings: [],
-                outstandingBalance: outstandingBalance,
-                totalPaid: amountPaid,
                 isDeleted: false,
                 createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
             };
 
-            await addDoc(collection(db, `gyms/${userProfile.gymId}/members`), newMember);
+            await addDoc(collection(db, `gyms/${userProfile.gymId}/members`), memberData);
 
             toast.success(`Member #${newMemberId} added successfully!`);
             navigate('/members');
@@ -427,6 +443,17 @@ export function AddMemberPage() {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="startDate">{t('members.startDate')} *</Label>
+                                    <Input
+                                        id="startDate"
+                                        type="date"
+                                        value={formData.startDate}
+                                        onChange={(e) => handleInputChange('startDate', e.target.value)}
+                                        className="w-full"
+                                    />
                                 </div>
 
                                 {/* Fully Paid Toggle - Clickable Card */}

@@ -270,7 +270,9 @@
         "enterCni": "أدخل رقم الهوية",
         "cniNumber": "رقم الهوية",
         "description": "الوصف",
-        "enterDescription": "أدخل أي ملاحظات أو وصف حول هذا العضو..."
+        "enterDescription": "أدخل أي ملاحظات أو وصف حول هذا العضو...",
+        "insuranceValidUntil": "التأمين صالح لغاية",
+        "expiresOn": "تنتهي الصلاحية في"
     },
     "plans": {
         "title": "الخطط والرسوم",

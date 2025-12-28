@@ -278,7 +278,9 @@
         "cniNumber": "CNI/ID Number",
         "description": "Description",
         "enterDescription": "Enter any notes or description about this member...",
-        "fullyPaid": "Fully Paid"
+        "fullyPaid": "Fully Paid",
+        "insuranceValidUntil": "Insurance valid until",
+        "expiresOn": "Expires on"
     },
     "plans": {
         "title": "Plans & Fees",

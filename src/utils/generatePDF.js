@@ -96,18 +96,13 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         const firstPayment = member.payments && member.payments.length > 0 ? member.payments[0] : null;
         const initialAdvance = firstPayment ? firstPayment.amount : 0;
 
-        const currentPlan = member.currentSubscription?.planName || 'N/A';
-        const planPrice = member.currentSubscription?.planPrice || member.currentSubscription?.price || 0;
-
         const memberInfo = [
             ['Full Name:', `${member.firstName || ''} ${member.lastName || ''}`],
             ['Member ID:', String(member.memberId || member.id || 'N/A')],
             ['CNI ID:', member.cniId || 'N/A'],
             ['Phone:', member.phone || 'N/A'],
             ['Email:', member.email || 'N/A'],
-            ['Current Plan:', currentPlan],
-            ['Plan Price:', `${planPrice} MAD`],
-            ['Insurance:', member.insuranceStatus === 'active' ? 'Paid' : 'Unpaid'],
+            ['Join Date:', member.joinDate ? new Date(member.joinDate).toLocaleDateString() : 'N/A'],
         ];
 
         let infoY = yPos + 15;
@@ -120,41 +115,7 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
             doc.text(String(value), xPos + 28, infoY);
         });
 
-        yPos += 70;
-
-        // Financial Summary - 3 boxes
-        const boxWidth = (pageWidth - 42) / 3;
-
-        // Initial Advance
-        doc.setFillColor(219, 234, 254);
-        doc.rect(14, yPos, boxWidth, 28, 'F');
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 64, 175);
-        doc.text('Initial Advance', 18, yPos + 10);
-        doc.setFontSize(14);
-        doc.text(`${initialAdvance} MAD`, 18, yPos + 22);
-
-        // Total Paid
-        doc.setFillColor(220, 252, 231);
-        doc.rect(14 + boxWidth + 7, yPos, boxWidth, 28, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(22, 163, 74);
-        doc.text('Total Paid', 14 + boxWidth + 11, yPos + 10);
-        doc.setFontSize(14);
-        doc.text(`${member.totalPaid || 0} MAD`, 14 + boxWidth + 11, yPos + 22);
-
-        // Outstanding
-        doc.setFillColor(254, 226, 226);
-        doc.rect(14 + (boxWidth + 7) * 2, yPos, boxWidth, 28, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(220, 38, 38);
-        doc.text('Outstanding', 14 + (boxWidth + 7) * 2 + 4, yPos + 10);
-        doc.setFontSize(14);
-        doc.text(`${member.outstandingBalance || 0} MAD`, 14 + (boxWidth + 7) * 2 + 4, yPos + 22);
-
-        doc.setTextColor(0, 0, 0);
-        yPos += 40;
+        yPos += 50;
 
         // Subscription History
         doc.setFontSize(14);
@@ -261,29 +222,48 @@ export function generateSubscriptionPDF(member, subscription, gymName = 'PowerGY
 
         let yPos = 50;
 
-        // Member Info
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Member:', 14, yPos);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${member.firstName || ''} ${member.lastName || ''}`, 45, yPos);
+        // Member Info Section
+        doc.setFillColor(243, 244, 246);
+        doc.rect(14, yPos - 5, pageWidth - 28, 50, 'F');
 
-        yPos += 8;
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('ID:', 14, yPos);
-        doc.setFont('helvetica', 'normal');
-        doc.text(String(member.memberId || member.id || 'N/A'), 45, yPos);
+        doc.text('Member Information', 20, yPos + 5);
 
-        yPos += 15;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        const memberInfo = [
+            ['Full Name:', `${member.firstName || ''} ${member.lastName || ''}`],
+            ['Member ID:', String(member.memberId || member.id || 'N/A')],
+            ['CNI ID:', member.cniId || 'N/A'],
+            ['Phone:', member.phone || 'N/A'],
+            ['Email:', member.email || 'N/A'],
+            ['Insurance:', member.insuranceStatus === 'active' ? 'Paid' : 'Unpaid'],
+        ];
+
+        let infoY = yPos + 15;
+        memberInfo.forEach(([label, value], i) => {
+            const xPos = i % 2 === 0 ? 20 : 110;
+            if (i % 2 === 0 && i > 0) infoY += 10;
+            doc.setFont('helvetica', 'bold');
+            doc.text(label, xPos, infoY);
+            doc.setFont('helvetica', 'normal');
+            doc.text(String(value), xPos + 28, infoY);
+        });
+
+        yPos += 60;
 
         // Subscription Details Box
-        doc.setFillColor(243, 244, 246);
+        doc.setFillColor(219, 234, 254);
         doc.rect(14, yPos, pageWidth - 28, 50, 'F');
 
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 64, 175);
         doc.text('Subscription Details', 20, yPos + 12);
 
+        doc.setTextColor(0, 0, 0);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
 
@@ -304,6 +284,40 @@ export function generateSubscriptionPDF(member, subscription, gymName = 'PowerGY
         });
 
         yPos += 60;
+
+        // Insurance Section
+        doc.setFillColor(220, 252, 231);
+        doc.rect(14, yPos, pageWidth - 28, 30, 'F');
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(22, 163, 74);
+        doc.text('Insurance', 20, yPos + 12);
+
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+
+        const insuranceStatus = member.insuranceStatus === 'active' ? 'Paid' : 'Unpaid';
+        const insuranceExpiry = member.insuranceExpiryDate ? new Date(member.insuranceExpiryDate).toLocaleDateString() : 'N/A';
+        const insuranceFee = member.insuranceFee || 50;
+
+        doc.setFont('helvetica', 'bold');
+        doc.text('Status:', 20, yPos + 22);
+        doc.setFont('helvetica', 'normal');
+        doc.text(insuranceStatus, 55, yPos + 22);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text('Valid Until:', 80, yPos + 22);
+        doc.setFont('helvetica', 'normal');
+        doc.text(insuranceExpiry, 115, yPos + 22);
+
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fee:', 150, yPos + 22);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${insuranceFee} MAD`, 165, yPos + 22);
+
+        yPos += 40;
 
         // Status
         const isActive = new Date(subscription.endDate) > new Date();

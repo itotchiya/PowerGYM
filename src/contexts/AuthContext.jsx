@@ -66,6 +66,15 @@ export function AuthProvider({ children }) {
         try {
             const result = await signInWithEmailAndPassword(auth, email, password);
 
+            // Clear any existing session to force role re-selection
+            // This ensures the user always chooses owner/manager role on login
+            try {
+                await deleteDoc(doc(db, 'sessions', result.user.uid));
+                setSessionState(null);
+            } catch (sessionError) {
+                console.log('No existing session to clear');
+            }
+
             // Sync email from Firebase Auth to Firestore (in case it was changed via verification)
             try {
                 const syncUserEmail = httpsCallable(functions, 'syncUserEmail');

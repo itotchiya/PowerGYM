@@ -16,6 +16,7 @@ import { SuperAdminSettingsPage } from '@/pages/superadmin/SuperAdminSettingsPag
 import { MembersPage } from '@/pages/members/MembersPage';
 import { MemberProfilePage } from '@/pages/members/MemberProfilePage';
 import { AddMemberPage } from '@/pages/members/AddMemberPage';
+import { AddSubscriptionPage } from '@/pages/members/AddSubscriptionPage';
 import { ExpiringSoonPage } from '@/pages/ExpiringSoonPage';
 import { WarningsPage } from '@/pages/WarningsPage';
 import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
@@ -23,6 +24,7 @@ import { PlansPage } from '@/pages/PlansPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { AuditLogPage } from '@/pages/AuditLogPage';
+import { ResetMembersPage } from '@/pages/admin/ResetMembersPage';
 
 function App() {
   const { user, userProfile, session, loading } = useAuth();
@@ -133,6 +135,15 @@ function App() {
         />
 
         <Route
+          path="/members/:memberId/add-subscription"
+          element={
+            <ProtectedRoute>
+              <AddSubscriptionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/expiring-soon"
           element={
             <ProtectedRoute>
@@ -174,6 +185,15 @@ function App() {
           element={
             <ProtectedRoute requireOwner>
               <AuditLogPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/reset-members"
+          element={
+            <ProtectedRoute requireOwner>
+              <ResetMembersPage />
             </ProtectedRoute>
           }
         />

@@ -81,7 +81,10 @@ export function MemberProfilePage() {
     // Subscription Form
     const [subForm, setSubForm] = useState({
         planId: '',
-        startDate: new Date().toISOString().split('T')[0]
+        startDate: new Date().toISOString().split('T')[0],
+        isFullyPaid: true,
+        amountPaid: '',
+        includeInsurance: false
     });
 
     // CNI Edit Form
@@ -149,6 +152,12 @@ export function MemberProfilePage() {
         if (daysLeft < 0) return 'expired';
         if (daysLeft <= 7) return 'expiring';
         return 'active';
+    };
+
+    const isInsuranceValid = () => {
+        if (!member?.insuranceExpiryDate) return false;
+        const expiryDate = new Date(member.insuranceExpiryDate);
+        return expiryDate > new Date();
     };
 
     const handleCNIUpload = async () => {
@@ -268,18 +277,35 @@ export function MemberProfilePage() {
         e.preventDefault();
         try {
             const selectedPlan = plans.find(p => p.id === subForm.planId);
-            if (!selectedPlan) return;
+            if (!selectedPlan) {
+                toast.error('Please select a plan');
+                return;
+            }
 
-            const startDate = new Date(subForm.startDate);
+            const subStartDate = new Date(subForm.startDate);
             const durationDays = selectedPlan.duration;
-            const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+            const endDate = new Date(subStartDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+            const planPrice = Number(selectedPlan.price);
+            const insuranceNeeded = subForm.includeInsurance && !isInsuranceValid();
+            const insuranceFee = insuranceNeeded ? INSURANCE_FEE : 0;
+            const totalPrice = planPrice + insuranceFee;
+
+            let finalAmountPaid = 0;
+            if (subForm.isFullyPaid) {
+                finalAmountPaid = totalPrice;
+            } else {
+                finalAmountPaid = Number(subForm.amountPaid) || 0;
+            }
+
+            const subOutstandingBalance = totalPrice - finalAmountPaid;
 
             const newSubscription = {
                 planId: selectedPlan.id,
                 planName: selectedPlan.name,
-                startDate: startDate.toISOString(),
+                startDate: subStartDate.toISOString(),
                 endDate: endDate.toISOString(),
-                price: Number(selectedPlan.price),
+                price: planPrice,
                 status: 'active'
             };
 
@@ -288,14 +314,47 @@ export function MemberProfilePage() {
             const history = member.subscriptionHistory || [];
             const newHistory = [...history, { ...newSubscription, createdAt: new Date().toISOString() }];
 
-            await updateDoc(memberRef, {
+            const updateData = {
                 currentSubscription: newSubscription,
                 subscriptionHistory: newHistory,
-                outstandingBalance: (member.outstandingBalance || 0) + Number(selectedPlan.price)
-            });
+                totalPaid: (member.totalPaid || 0) + finalAmountPaid,
+                outstandingBalance: (member.outstandingBalance || 0) + subOutstandingBalance,
+                updatedAt: serverTimestamp()
+            };
 
-            toast.success('Subscription added');
+            // Update insurance if paid
+            if (insuranceNeeded) {
+                const newExpiryDate = new Date(subStartDate);
+                newExpiryDate.setFullYear(newExpiryDate.getFullYear() + 1);
+                updateData.insuranceExpiryDate = newExpiryDate.toISOString();
+                updateData.insuranceStatus = 'active';
+                updateData.insuranceFee = insuranceFee;
+            }
+
+            // Record payment
+            if (finalAmountPaid > 0) {
+                const newPayments = [...(member.payments || [])];
+                newPayments.push({
+                    amount: finalAmountPaid,
+                    date: new Date().toISOString(),
+                    type: 'SUBSCRIPTION_PAYMENT',
+                    note: `Subscription: ${selectedPlan.name}${insuranceNeeded ? ' + Insurance' : ''}`
+                });
+                updateData.payments = newPayments;
+            }
+
+            await updateDoc(memberRef, updateData);
+
+            toast.success('Subscription added successfully');
             setShowSubscriptionDialog(false);
+            // Reset form
+            setSubForm({
+                planId: '',
+                startDate: new Date().toISOString().split('T')[0],
+                isFullyPaid: true,
+                amountPaid: '',
+                includeInsurance: false
+            });
             fetchMemberData();
         } catch (error) {
             console.error("Error adding subscription", error);
@@ -575,9 +634,16 @@ export function MemberProfilePage() {
                                     <div>
                                         <p className="text-sm text-muted-foreground">{t('members.insuranceStatus')}</p>
                                         <div className="flex items-center gap-2 mt-1">
-                                            {member.insuranceStatus === 'active' ? (
-                                                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium">
-                                                    <Shield className="h-4 w-4" /> {t('members.paid')}
+                                            {isInsuranceValid() ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium w-fit">
+                                                        <Shield className="h-4 w-4" /> {t('members.paid')}
+                                                    </div>
+                                                    {member.insuranceExpiryDate && (
+                                                        <span className="text-[10px] text-muted-foreground ml-1">
+                                                            {t('members.expiresOn') || 'Expires on'}: {new Date(member.insuranceExpiryDate).toLocaleDateString()}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-sm font-medium animate-pulse">
@@ -687,7 +753,7 @@ export function MemberProfilePage() {
                             <CardDescription>{t('members.manageSubscriptions')}</CardDescription>
                         </div>
                         {isOwner() && (
-                            <Button onClick={() => setShowSubscriptionDialog(true)} size="sm">
+                            <Button onClick={() => navigate(`/members/${memberId}/add-subscription`)} size="sm">
                                 <Plus className="mr-2 h-4 w-4" /> {t('members.addSubscription')}
                             </Button>
                         )}
@@ -810,35 +876,165 @@ export function MemberProfilePage() {
 
             {/* Add Subscription Dialog */}
             <Dialog open={showSubscriptionDialog} onOpenChange={setShowSubscriptionDialog}>
-                <DialogContent>
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>{t('members.addNewSubscription')}</DialogTitle>
                         <DialogDescription>{t('members.addSubscriptionDesc')}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddSubscription}>
                         <div className="space-y-4 py-4">
+                            {/* Plan Selection */}
                             <div className="space-y-2">
-                                <Label>{t('plans.plan')}</Label>
-                                <Select value={subForm.planId} onValueChange={(v) => setSubForm({ ...subForm, planId: v })} required>
-                                    <SelectTrigger><SelectValue placeholder={t('members.selectPlan')} /></SelectTrigger>
+                                <Label htmlFor="sub-plan">{t('plans.plan')} *</Label>
+                                <Select
+                                    value={subForm.planId}
+                                    onValueChange={(v) => setSubForm({ ...subForm, planId: v })}
+                                    required
+                                >
+                                    <SelectTrigger id="sub-plan">
+                                        <SelectValue placeholder={t('members.selectPlan')} />
+                                    </SelectTrigger>
                                     <SelectContent>
                                         {plans.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration} {t('time.days')}) - {p.price} MAD</SelectItem>
+                                            <SelectItem key={p.id} value={p.id}>
+                                                {p.name} ({p.duration} {t('time.days')}) - {p.price} MAD
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* Start Date */}
                             <div className="space-y-2">
-                                <Label>{t('members.startDate')}</Label>
-                                <Input type="date" value={subForm.startDate} onChange={(e) => setSubForm({ ...subForm, startDate: e.target.value })} required />
+                                <Label htmlFor="sub-start-date">{t('members.startDate')} *</Label>
+                                <Input
+                                    id="sub-start-date"
+                                    type="date"
+                                    value={subForm.startDate}
+                                    onChange={(e) => setSubForm({ ...subForm, startDate: e.target.value })}
+                                    required
+                                />
                             </div>
-                            <div className="bg-muted p-3 rounded text-xs text-muted-foreground">
-                                <p>{t('members.subscriptionNote')}</p>
+
+                            {/* Payment Mode Toggle - Clickable Card */}
+                            <div
+                                onClick={() => setSubForm({ ...subForm, isFullyPaid: !subForm.isFullyPaid })}
+                                className="cursor-pointer p-4 rounded-lg border transition-all hover:bg-muted/60 dark:hover:bg-muted/20 bg-muted/40 dark:bg-muted/10"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label className="cursor-pointer text-base">{t('members.fullyPaid')}</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            {subForm.isFullyPaid ? t('plans.fullPayment') : t('plans.partialPayment')}
+                                        </p>
+                                    </div>
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <Switch
+                                            checked={subForm.isFullyPaid}
+                                            onCheckedChange={(checked) => setSubForm({ ...subForm, isFullyPaid: checked })}
+                                        />
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Amount Paid Input (if partial) */}
+                            {!subForm.isFullyPaid && (
+                                <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                    <Label htmlFor="sub-amount-paid">{t('plans.amountPaid')} (MAD) *</Label>
+                                    <Input
+                                        id="sub-amount-paid"
+                                        type="number"
+                                        min="0"
+                                        value={subForm.amountPaid}
+                                        onChange={(e) => setSubForm({ ...subForm, amountPaid: e.target.value })}
+                                        placeholder="Enter amount paid"
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            {/* Insurance Section */}
+                            <div className="pt-2">
+                                <div
+                                    className={`flex items-center justify-between p-4 border rounded-lg transition-all ${isInsuranceValid() ? 'opacity-70 bg-muted' : 'cursor-pointer hover:bg-muted/60 bg-muted/40'}`}
+                                    onClick={() => !isInsuranceValid() && setSubForm({ ...subForm, includeInsurance: !subForm.includeInsurance })}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <Checkbox
+                                            id="sub-include-insurance"
+                                            checked={isInsuranceValid() || subForm.includeInsurance}
+                                            disabled={isInsuranceValid()}
+                                            onCheckedChange={(checked) => setSubForm({ ...subForm, includeInsurance: checked })}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <div>
+                                            <Label htmlFor="sub-include-insurance" className={isInsuranceValid() ? "" : "cursor-pointer"}>
+                                                {t('plans.includeInsurance')}
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                {isInsuranceValid()
+                                                    ? `${t('members.insuranceValidUntil') || 'Valid until'} ${new Date(member.insuranceExpiryDate).toLocaleDateString()}`
+                                                    : `${INSURANCE_FEE} MAD`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {isInsuranceValid() && (
+                                        <Badge className="bg-emerald-500 text-white">{t('members.active')}</Badge>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Calculator Section */}
+                            {subForm.planId && (
+                                <div className="bg-muted/50 p-4 rounded-lg space-y-2 border">
+                                    {(() => {
+                                        const selectedPlan = plans.find(p => p.id === subForm.planId);
+                                        if (!selectedPlan) return null;
+
+                                        const planPrice = Number(selectedPlan.price);
+                                        const insuranceNeeded = subForm.includeInsurance && !isInsuranceValid();
+                                        const insuranceFee = insuranceNeeded ? INSURANCE_FEE : 0;
+                                        const totalPrice = planPrice + insuranceFee;
+                                        const amountPaying = subForm.isFullyPaid ? totalPrice : Number(subForm.amountPaid) || 0;
+                                        const remaining = Math.max(0, totalPrice - amountPaying);
+
+                                        return (
+                                            <>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">{t('plans.planPrice')}:</span>
+                                                    <span className="font-medium">{planPrice} MAD</span>
+                                                </div>
+                                                {insuranceNeeded && (
+                                                    <div className="flex justify-between text-sm">
+                                                        <span className="text-muted-foreground">{t('plans.insurance')}:</span>
+                                                        <span className="font-medium">{INSURANCE_FEE} MAD</span>
+                                                    </div>
+                                                )}
+                                                <div className="border-t pt-2 flex justify-between font-bold">
+                                                    <span>{t('plans.totalAmount')}:</span>
+                                                    <span className="text-primary">{totalPrice} MAD</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm pt-1">
+                                                    <span className="text-muted-foreground">{t('members.amountPaying')}:</span>
+                                                    <span className="font-medium text-green-600">{amountPaying} MAD</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">{t('members.debtAfterPayment')}:</span>
+                                                    <span className={`font-medium ${remaining > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                                        {remaining} MAD
+                                                    </span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
                         </div>
                         <DialogFooter>
                             <Button variant="outline" type="button" onClick={() => setShowSubscriptionDialog(false)}>{t('common.cancel')}</Button>
-                            <Button type="submit">{t('members.addSubscription')}</Button>
+                            <Button type="submit" disabled={!subForm.planId}>
+                                {t('members.addSubscription')}
+                            </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
