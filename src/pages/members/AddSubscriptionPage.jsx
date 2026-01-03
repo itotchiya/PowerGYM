@@ -93,8 +93,30 @@ export function AddSubscriptionPage() {
             }
 
             const subStartDate = new Date(formData.startDate);
-            const durationDays = selectedPlan.duration;
-            const endDate = new Date(subStartDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+            // Calculate end date using months
+            let months = 0;
+            let extraDays = 0;
+
+            if (selectedPlan.durationMonths !== undefined && selectedPlan.durationMonths >= 0) {
+                months = selectedPlan.durationMonths;
+                extraDays = selectedPlan.durationDays || 0;
+            } else if (selectedPlan.duration) {
+                // Legacy: detect months from days (30 days = 1 month)
+                const durationDays = Number(selectedPlan.duration);
+                months = Math.floor(durationDays / 30);
+                extraDays = durationDays % 30;
+            } else {
+                months = 1;
+            }
+
+            const endDate = new Date(subStartDate);
+            if (months > 0) {
+                endDate.setMonth(endDate.getMonth() + months);
+            }
+            if (extraDays > 0) {
+                endDate.setDate(endDate.getDate() + extraDays);
+            }
 
             const planPrice = Number(selectedPlan.price);
             const insuranceNeeded = formData.includeInsurance && !isInsuranceValid();

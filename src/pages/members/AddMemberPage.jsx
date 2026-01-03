@@ -18,6 +18,7 @@ import {
     collection,
     getDocs,
     query,
+    where,
     addDoc,
     serverTimestamp,
     runTransaction,
@@ -68,6 +69,48 @@ export function AddMemberPage() {
     const [avatarPreview, setAvatarPreview] = useState(null);
     const [showAvatarCropDialog, setShowAvatarCropDialog] = useState(false);
     const [rawAvatarSrc, setRawAvatarSrc] = useState(null);
+
+    // Helper to calculate subscription end date using months when available
+    const calculateSubscriptionEndDate = (startDate, plan) => {
+        const start = new Date(startDate);
+        const endDate = new Date(start);
+
+        let months = 0;
+        let extraDays = 0;
+
+        // Check if plan has explicit month/day fields
+        if (plan.durationMonths !== undefined && plan.durationMonths >= 0) {
+            months = plan.durationMonths;
+            extraDays = plan.durationDays || 0;
+        } else if (plan.duration) {
+            // Legacy: detect months from days (30 days = 1 month)
+            // Handle common cases: 30, 60, 90, 120, 180, 360 days as clean months
+            const durationDays = Number(plan.duration);
+            if (durationDays % 30 === 0) {
+                months = Math.floor(durationDays / 30);
+                extraDays = 0;
+            } else {
+                months = Math.floor(durationDays / 30);
+                extraDays = durationDays % 30;
+            }
+        } else {
+            // Default to 1 month if no duration
+            months = 1;
+            extraDays = 0;
+        }
+
+        // Add months (this properly handles varying month lengths)
+        if (months > 0) {
+            endDate.setMonth(endDate.getMonth() + months);
+        }
+
+        // Add extra days
+        if (extraDays > 0) {
+            endDate.setDate(endDate.getDate() + extraDays);
+        }
+
+        return endDate.toISOString();
+    };
 
     // Fetch plans
     useEffect(() => {
@@ -220,30 +263,19 @@ export function AddMemberPage() {
 
             const outstandingBalance = totalPrice - amountPaid;
 
-            // Get next available member ID (reuse deleted member IDs)
+            // Get next member ID (count of non-deleted members + 1)
             let newMemberId = 1;
 
             try {
-                // Get all existing member IDs (including deleted ones to avoid conflicts)
-                const membersQuery = query(collection(db, `gyms/${userProfile.gymId}/members`));
+                // Get count of non-deleted members
+                const membersQuery = query(
+                    collection(db, `gyms/${userProfile.gymId}/members`),
+                    where('isDeleted', '!=', true)
+                );
                 const membersSnapshot = await getDocs(membersQuery);
-
-                // Collect all used member IDs
-                const usedIds = new Set();
-                membersSnapshot.docs.forEach(doc => {
-                    const memberId = doc.data().memberId;
-                    if (memberId) {
-                        usedIds.add(Number(memberId));
-                    }
-                });
-
-                // Find the lowest available ID
-                newMemberId = 1;
-                while (usedIds.has(newMemberId)) {
-                    newMemberId++;
-                }
+                newMemberId = membersSnapshot.docs.length + 1;
             } catch (e) {
-                console.error("Failed to get available member ID", e);
+                console.error("Failed to get member count", e);
                 toast.error('Failed to generate member ID');
                 return;
             }
@@ -254,7 +286,7 @@ export function AddMemberPage() {
                 planName: selectedPlan.name,
                 price: planPrice,
                 startDate: subStartDate.toISOString(),
-                endDate: new Date(subStartDate.getTime() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
+                endDate: calculateSubscriptionEndDate(subStartDate, selectedPlan),
             };
 
             // Upload CNI file if provided

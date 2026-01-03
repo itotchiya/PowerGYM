@@ -111,7 +111,9 @@ export function PlansPage() {
             const newPlan = {
                 name: planForm.name,
                 price: Number(planForm.price),
-                duration: totalDays,
+                duration: totalDays, // Keep for backward compatibility
+                durationMonths: parseInt(planForm.months) || 0, // Store months separately
+                durationDays: parseInt(planForm.days) || 0, // Store extra days separately
                 description: planForm.description,
                 createdAt: serverTimestamp(),
             };
@@ -156,7 +158,9 @@ export function PlansPage() {
             await updateDoc(planRef, {
                 name: planForm.name,
                 price: Number(planForm.price),
-                duration: totalDays,
+                duration: totalDays, // Keep for backward compatibility
+                durationMonths: parseInt(planForm.months) || 0,
+                durationDays: parseInt(planForm.days) || 0,
                 description: planForm.description,
             });
 
@@ -172,6 +176,8 @@ export function PlansPage() {
                     name: planForm.name,
                     price: Number(planForm.price),
                     duration: totalDays,
+                    durationMonths: parseInt(planForm.months) || 0,
+                    durationDays: parseInt(planForm.days) || 0,
                     description: planForm.description
                 }
             );

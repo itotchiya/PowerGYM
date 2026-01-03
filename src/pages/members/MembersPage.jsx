@@ -600,11 +600,49 @@ export function MembersPage() {
     };
 
     const handleDeleteMember = async () => {
-        const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
-        await updateDoc(memberRef, { isDeleted: true });
-        toast.success('Member deleted');
-        setShowDeleteDialog(false);
-        fetchData();
+        try {
+            const deletedMemberId = Number(selectedMember.memberId);
+            const deletedDocId = selectedMember.id;
+
+            // First, get all non-deleted members to renumber them
+            const membersQuery = query(collection(db, `gyms/${userProfile.gymId}/members`));
+            const membersSnapshot = await getDocs(membersQuery);
+
+            // Find all members with higher IDs that are not deleted (and not the one being deleted)
+            const membersToRenumber = [];
+            membersSnapshot.docs.forEach(docSnap => {
+                const memberData = docSnap.data();
+                const memberNum = Number(memberData.memberId);
+                // Skip the member being deleted and already deleted members
+                if (docSnap.id !== deletedDocId && !memberData.isDeleted && memberNum > deletedMemberId) {
+                    membersToRenumber.push({
+                        docId: docSnap.id,
+                        currentId: memberNum
+                    });
+                }
+            });
+
+            // Soft delete the member
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, deletedDocId);
+            await updateDoc(memberRef, { isDeleted: true, deletedAt: serverTimestamp() });
+
+            // Renumber all members with higher IDs (decrement by 1)
+            const updatePromises = membersToRenumber.map(m => {
+                const ref = doc(db, `gyms/${userProfile.gymId}/members`, m.docId);
+                return updateDoc(ref, { memberId: m.currentId - 1 });
+            });
+
+            if (updatePromises.length > 0) {
+                await Promise.all(updatePromises);
+            }
+
+            toast.success('Member deleted');
+            setShowDeleteDialog(false);
+            fetchData();
+        } catch (error) {
+            console.error('Error deleting member:', error);
+            toast.error('Failed to delete member');
+        }
     };
 
     const openWarningDialog = (member) => {
@@ -956,12 +994,12 @@ export function MembersPage() {
                                                 </TableCell>
                                                 <TableCell className="text-sm">
                                                     {member.currentSubscription?.startDate
-                                                        ? new Date(member.currentSubscription.startDate).toLocaleDateString()
+                                                        ? new Date(member.currentSubscription.startDate).toLocaleDateString('fr-FR')
                                                         : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-sm">
                                                     {member.currentSubscription?.endDate
-                                                        ? new Date(member.currentSubscription.endDate).toLocaleDateString()
+                                                        ? new Date(member.currentSubscription.endDate).toLocaleDateString('fr-FR')
                                                         : '-'}
                                                 </TableCell>
                                                 <TableCell className="text-center">
