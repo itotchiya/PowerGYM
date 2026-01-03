@@ -55,10 +55,11 @@ import {
 import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { toast } from 'sonner';
-import { Search, Download, MoreVertical, AlertTriangle, Edit, RefreshCw, DollarSign, Trash2, Plus, Phone, Shield, ShieldAlert, Check, ArrowUpDown, Camera, Upload, X, FileText } from 'lucide-react';
+import { Search, Download, MoreVertical, AlertTriangle, Edit, RefreshCw, DollarSign, Trash2, Plus, Phone, Shield, ShieldAlert, Check, ArrowUpDown, Camera, Upload, X, FileText, Calendar, User } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { ImageCropper } from '@/components/ui/image-cropper';
+import { compressAvatar } from '@/utils/imageUtils';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from '@/components/ui/pagination';
 
 export function MembersPage() {
@@ -82,6 +83,7 @@ export function MembersPage() {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showPaymentDialog, setShowPaymentDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [showEditPlanDialog, setShowEditPlanDialog] = useState(false);
     const [selectedMember, setSelectedMember] = useState(null);
 
     // CNI upload states for Add Member form
@@ -122,6 +124,21 @@ export function MembersPage() {
         payFullOutstanding: true,
         payInsurance: false,
     });
+
+    // Edit Plan Form state
+    const [editPlanForm, setEditPlanForm] = useState({
+        planId: '',
+        startDate: new Date().toISOString().split('T')[0],
+        isFullyPaid: true,
+        amountPaid: '',
+        includeInsurance: false,
+    });
+
+    // Avatar states for Edit Member
+    const [editAvatarFile, setEditAvatarFile] = useState(null);
+    const [editAvatarPreview, setEditAvatarPreview] = useState(null);
+    const [showEditAvatarCropDialog, setShowEditAvatarCropDialog] = useState(false);
+    const [rawEditAvatarSrc, setRawEditAvatarSrc] = useState(null);
 
     // Fetch data
     const fetchData = async () => {
@@ -464,11 +481,60 @@ export function MembersPage() {
     // Edit Member
     const handleEditMember = async (e) => {
         e.preventDefault();
-        const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
-        await updateDoc(memberRef, editForm);
-        toast.success('Member updated');
-        setShowEditDialog(false);
-        fetchData();
+        try {
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
+            const updateData = { ...editForm };
+
+            // Upload new avatar if changed
+            if (editAvatarFile) {
+                try {
+                    const safeFirstName = editForm.firstName.replace(/[^a-z0-9]/gi, '');
+                    const safeLastName = editForm.lastName.replace(/[^a-z0-9]/gi, '');
+                    const avatarFileName = `${selectedMember.memberId}-${safeFirstName}-${safeLastName}-avatar.jpg`;
+                    const avatarStorageRef = ref(storage, `gyms/${userProfile.gymId}/avatars/${avatarFileName}`);
+
+                    // Compress avatar before upload
+                    const compressedAvatar = await compressAvatar(editAvatarFile);
+                    await uploadBytes(avatarStorageRef, compressedAvatar);
+                    updateData.avatarUrl = await getDownloadURL(avatarStorageRef);
+                } catch (uploadError) {
+                    console.error('Avatar upload failed:', uploadError);
+                    toast.error('Avatar upload failed');
+                }
+            }
+
+            await updateDoc(memberRef, updateData);
+            toast.success('Member updated');
+            setShowEditDialog(false);
+            fetchData();
+        } catch (error) {
+            console.error('Error updating member:', error);
+            toast.error('Failed to update member');
+        }
+    };
+
+    // Avatar handling for Edit Member
+    const handleEditAvatarSelect = (file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please upload an image file');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setRawEditAvatarSrc(reader.result);
+            setShowEditAvatarCropDialog(true);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleEditAvatarCropped = (croppedBlob) => {
+        setEditAvatarFile(croppedBlob);
+        const previewUrl = URL.createObjectURL(croppedBlob);
+        setEditAvatarPreview(previewUrl);
+        setShowEditAvatarCropDialog(false);
+        setRawEditAvatarSrc(null);
     };
 
     // Add Payment
@@ -556,6 +622,9 @@ export function MembersPage() {
             phone: member.phone,
             cniId: member.cniId || '',
         });
+        // Reset avatar states
+        setEditAvatarFile(null);
+        setEditAvatarPreview(member.avatarUrl || null);
         setShowEditDialog(true);
     };
 
@@ -573,6 +642,107 @@ export function MembersPage() {
     const openDeleteDialog = (member) => {
         setSelectedMember(member);
         setShowDeleteDialog(true);
+    };
+
+    // Open Edit Plan Dialog
+    const openEditPlanDialog = (member) => {
+        setSelectedMember(member);
+        setEditPlanForm({
+            planId: member.currentSubscription?.planId || '',
+            startDate: member.currentSubscription?.startDate
+                ? new Date(member.currentSubscription.startDate).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0],
+            isFullyPaid: true,
+            amountPaid: '',
+            includeInsurance: false,
+        });
+        setShowEditPlanDialog(true);
+    };
+
+    // Handle Edit Plan with Payment Logic
+    const handleEditPlan = async (e) => {
+        e.preventDefault();
+        if (!selectedMember) return;
+
+        try {
+            const newPlan = plans.find(p => p.id === editPlanForm.planId);
+            if (!newPlan) {
+                toast.error('Please select a valid plan');
+                return;
+            }
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, selectedMember.id);
+
+            // Calculate dates
+            const startDate = new Date(editPlanForm.startDate);
+            const endDate = new Date(startDate.getTime() + newPlan.duration * 24 * 60 * 60 * 1000);
+
+            // Calculate prices
+            const newPlanPrice = Number(newPlan.price);
+            const insuranceFee = editPlanForm.includeInsurance && selectedMember.insuranceStatus !== 'active' ? 50 : 0;
+            const totalNewCost = newPlanPrice + insuranceFee;
+
+            // Calculate payment
+            let amountPaid = 0;
+            if (editPlanForm.isFullyPaid) {
+                amountPaid = totalNewCost;
+            } else {
+                amountPaid = Number(editPlanForm.amountPaid) || 0;
+                if (amountPaid > totalNewCost) {
+                    toast.error('Amount paid cannot exceed total cost');
+                    return;
+                }
+            }
+
+            const additionalOutstanding = totalNewCost - amountPaid;
+
+            // Create new subscription record
+            const newSubscription = {
+                planId: newPlan.id,
+                planName: newPlan.name,
+                price: newPlanPrice,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+            };
+
+            // Prepare update data
+            const updateData = {
+                currentSubscription: newSubscription,
+                subscriptionHistory: [
+                    ...(selectedMember.subscriptionHistory || []),
+                    { ...newSubscription, createdAt: new Date().toISOString() }
+                ],
+                outstandingBalance: (selectedMember.outstandingBalance || 0) + additionalOutstanding,
+                totalPaid: (selectedMember.totalPaid || 0) + amountPaid,
+            };
+
+            // Record payment if any
+            if (amountPaid > 0) {
+                const payments = selectedMember.payments || [];
+                payments.push({
+                    amount: amountPaid,
+                    type: 'plan_change',
+                    date: new Date().toISOString(),
+                    note: `Plan changed to ${newPlan.name}${insuranceFee > 0 ? ' + Insurance' : ''}`,
+                });
+                updateData.payments = payments;
+            }
+
+            // Update insurance if included
+            if (editPlanForm.includeInsurance && selectedMember.insuranceStatus !== 'active') {
+                updateData.insuranceStatus = 'active';
+                updateData.insuranceFee = 50;
+            }
+
+            await updateDoc(memberRef, updateData);
+
+            toast.success('Plan updated successfully');
+            setShowEditPlanDialog(false);
+            fetchData();
+        } catch (error) {
+            console.error('Error updating plan:', error);
+            toast.error('Failed to update plan');
+        }
     };
 
     if (loading) {
@@ -839,6 +1009,10 @@ export function MembersPage() {
                                                                     <DropdownMenuItem onClick={() => openEditDialog(member)}>
                                                                         <Edit className="mr-2 h-4 w-4" />
                                                                         {t('members.editMember')}
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem onClick={() => navigate(`/members/${member.id}/edit-plan`)}>
+                                                                        <Calendar className="mr-2 h-4 w-4" />
+                                                                        {t('members.editPlan')}
                                                                     </DropdownMenuItem>
                                                                     <DropdownMenuItem
                                                                         onClick={() => openPaymentDialog(member)}
@@ -1219,6 +1393,41 @@ export function MembersPage() {
                     </DialogHeader>
                     <form onSubmit={handleEditMember}>
                         <div className="grid gap-4 py-4">
+                            {/* Avatar Upload Section */}
+                            <div className="flex flex-col items-center justify-center mb-2">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    id="edit-avatar-upload"
+                                    onChange={(e) => handleEditAvatarSelect(e.target.files?.[0])}
+                                />
+                                <div
+                                    className="relative cursor-pointer group"
+                                    onClick={() => document.getElementById('edit-avatar-upload').click()}
+                                >
+                                    {editAvatarPreview ? (
+                                        <div className="relative">
+                                            <img
+                                                src={editAvatarPreview}
+                                                alt="Avatar"
+                                                className="w-20 h-20 rounded-full object-cover border-4 border-background shadow-lg"
+                                            />
+                                            <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <Camera className="h-5 w-5 text-white" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="w-20 h-20 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
+                                            <User className="h-8 w-8 text-muted-foreground/50" />
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    {t('members.avatarHint')}
+                                </p>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>First Name</Label>
@@ -1287,6 +1496,144 @@ export function MembersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Edit Plan Dialog */}
+            <Dialog open={showEditPlanDialog} onOpenChange={setShowEditPlanDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t('members.editPlan')}</DialogTitle>
+                        <DialogDescription>
+                            {t('members.editPlanDesc')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedMember && (
+                        <form onSubmit={handleEditPlan}>
+                            <div className="space-y-4 py-4">
+                                {/* Current Plan Info */}
+                                <div className="p-3 bg-muted/30 rounded-lg">
+                                    <p className="text-sm text-muted-foreground">{t('members.currentPlan')}</p>
+                                    <p className="font-semibold">{selectedMember.currentSubscription?.planName || 'N/A'}</p>
+                                </div>
+
+                                {/* Plan Selection */}
+                                <div className="space-y-2">
+                                    <Label>{t('plans.selectPlan')}</Label>
+                                    <Select
+                                        value={editPlanForm.planId}
+                                        onValueChange={(v) => setEditPlanForm({ ...editPlanForm, planId: v })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('members.selectPlan')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {plans.map(plan => (
+                                                <SelectItem key={plan.id} value={plan.id}>
+                                                    {plan.name} - {plan.price} MAD ({plan.duration} {t('time.days')})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Start Date */}
+                                <div className="space-y-2">
+                                    <Label>{t('members.startDate')}</Label>
+                                    <Input
+                                        type="date"
+                                        value={editPlanForm.startDate}
+                                        onChange={(e) => setEditPlanForm({ ...editPlanForm, startDate: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* Payment Status Toggle */}
+                                <div className="flex items-center justify-between border p-3 rounded-lg bg-muted/20">
+                                    <Label>{t('members.payment')}</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Label className={!editPlanForm.isFullyPaid ? "font-bold" : "text-muted-foreground"}>
+                                            {t('plans.partialPayment')}
+                                        </Label>
+                                        <Switch
+                                            checked={editPlanForm.isFullyPaid}
+                                            onCheckedChange={(c) => setEditPlanForm({ ...editPlanForm, isFullyPaid: c })}
+                                        />
+                                        <Label className={editPlanForm.isFullyPaid ? "font-bold" : "text-muted-foreground"}>
+                                            {t('plans.fullPayment')}
+                                        </Label>
+                                    </div>
+                                </div>
+
+                                {/* Amount Paid (if partial) */}
+                                {!editPlanForm.isFullyPaid && (
+                                    <div className="space-y-2">
+                                        <Label>{t('plans.amountPaid')} (MAD)</Label>
+                                        <Input
+                                            type="number"
+                                            value={editPlanForm.amountPaid}
+                                            onChange={(e) => setEditPlanForm({ ...editPlanForm, amountPaid: e.target.value })}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Insurance Option */}
+                                {selectedMember.insuranceStatus !== 'active' && (
+                                    <div className="flex items-center space-x-3 border p-3 rounded-lg bg-muted/20">
+                                        <Checkbox
+                                            checked={editPlanForm.includeInsurance}
+                                            onCheckedChange={(c) => setEditPlanForm({ ...editPlanForm, includeInsurance: c })}
+                                        />
+                                        <Label className="flex-1">{t('plans.includeInsurance')} (50 MAD)</Label>
+                                    </div>
+                                )}
+
+                                {/* Pricing Summary */}
+                                {editPlanForm.planId && (
+                                    <div className="p-3 bg-muted/30 rounded-lg space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">{t('members.newPlanPrice')}:</span>
+                                            <span className="font-medium">
+                                                {plans.find(p => p.id === editPlanForm.planId)?.price || 0} MAD
+                                            </span>
+                                        </div>
+                                        {editPlanForm.includeInsurance && selectedMember.insuranceStatus !== 'active' && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">{t('plans.insurance')}:</span>
+                                                <span className="font-medium">50 MAD</span>
+                                            </div>
+                                        )}
+                                        <Separator />
+                                        <div className="flex justify-between font-semibold">
+                                            <span>{t('common.total')}:</span>
+                                            <span>
+                                                {(Number(plans.find(p => p.id === editPlanForm.planId)?.price || 0) +
+                                                    (editPlanForm.includeInsurance && selectedMember.insuranceStatus !== 'active' ? 50 : 0))} MAD
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <DialogFooter>
+                                <Button type="button" variant="outline" onClick={() => setShowEditPlanDialog(false)}>
+                                    {t('common.cancel')}
+                                </Button>
+                                <Button type="submit">{t('common.save')}</Button>
+                            </DialogFooter>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Image Cropper for Edit Member Avatar */}
+            <ImageCropper
+                open={showEditAvatarCropDialog}
+                onClose={() => {
+                    setShowEditAvatarCropDialog(false);
+                    setRawEditAvatarSrc(null);
+                }}
+                imageSrc={rawEditAvatarSrc}
+                onCropComplete={handleEditAvatarCropped}
+                aspectRatio={1}
+            />
 
         </DashboardLayout>
     );

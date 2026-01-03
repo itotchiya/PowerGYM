@@ -27,6 +27,7 @@ import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useEffect } from 'react';
 import { ImageCropper } from '@/components/ui/image-cropper';
+import { compressAvatar } from '@/utils/imageUtils';
 
 export function AddMemberPage() {
     const navigate = useNavigate();
@@ -61,6 +62,12 @@ export function AddMemberPage() {
     const [showCropDialog, setShowCropDialog] = useState(false);
     const [rawImageSrc, setRawImageSrc] = useState(null);
     const [showUploadOptions, setShowUploadOptions] = useState(true);
+
+    // Avatar Upload state
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [showAvatarCropDialog, setShowAvatarCropDialog] = useState(false);
+    const [rawAvatarSrc, setRawAvatarSrc] = useState(null);
 
     // Fetch plans
     useEffect(() => {
@@ -162,6 +169,33 @@ export function AddMemberPage() {
         setShowUploadOptions(false);
     };
 
+    // Avatar handling
+    const handleAvatarSelect = (file) => {
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please upload an image file');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setRawAvatarSrc(reader.result);
+            setShowAvatarCropDialog(true);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleCroppedAvatar = async (croppedBlob) => {
+        // Compress the avatar
+        const compressedAvatar = await compressAvatar(croppedBlob);
+        setAvatarFile(compressedAvatar);
+        const previewUrl = URL.createObjectURL(compressedAvatar);
+        setAvatarPreview(previewUrl);
+        setShowAvatarCropDialog(false);
+        setRawAvatarSrc(null);
+    };
+
     const handleSubmit = async () => {
         if (!userProfile?.gymId) return;
 
@@ -229,6 +263,22 @@ export function AddMemberPage() {
                 }
             }
 
+            // Upload Avatar if provided
+            let avatarUrl = null;
+            if (avatarFile) {
+                try {
+                    const safeFirstName = formData.firstName.replace(/[^a-z0-9]/gi, '');
+                    const safeLastName = formData.lastName.replace(/[^a-z0-9]/gi, '');
+                    const avatarFileName = `${newMemberId}-${safeFirstName}-${safeLastName}-avatar.jpg`;
+                    const avatarStorageRef = ref(storage, `gyms/${userProfile.gymId}/avatars/${avatarFileName}`);
+                    await uploadBytes(avatarStorageRef, avatarFile);
+                    avatarUrl = await getDownloadURL(avatarStorageRef);
+                } catch (uploadError) {
+                    console.error('Avatar upload failed:', uploadError);
+                    // Avatar is optional, don't show warning
+                }
+            }
+
             // Calculate insurance expiry if included
             let insuranceExpiryDate = null;
             if (formData.includeInsurance) {
@@ -250,6 +300,7 @@ export function AddMemberPage() {
                 gymId: userProfile.gymId,
                 status: 'active',
                 cniDocumentUrl,
+                avatarUrl,
                 insuranceStatus: formData.includeInsurance ? 'active' : 'unpaid',
                 insuranceExpiryDate,
                 insuranceFee: formData.includeInsurance ? Number(formData.insuranceFee) : 0,
@@ -354,6 +405,62 @@ export function AddMemberPage() {
                         {/* Step 1: Information */}
                         {currentStep === 1 && (
                             <div className="space-y-4">
+                                {/* Avatar Upload Section */}
+                                <div className="flex flex-col items-center justify-center mb-6">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        id="avatar-gallery"
+                                        onChange={(e) => handleAvatarSelect(e.target.files?.[0])}
+                                    />
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="user"
+                                        className="hidden"
+                                        id="avatar-camera"
+                                        onChange={(e) => handleAvatarSelect(e.target.files?.[0])}
+                                    />
+                                    <div
+                                        className="relative cursor-pointer group"
+                                        onClick={() => document.getElementById('avatar-gallery').click()}
+                                    >
+                                        {avatarPreview ? (
+                                            <div className="relative">
+                                                <img
+                                                    src={avatarPreview}
+                                                    alt="Avatar"
+                                                    className="w-24 h-24 rounded-full object-cover border-4 border-background shadow-lg"
+                                                />
+                                                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <Camera className="h-6 w-6 text-white" />
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setAvatarFile(null);
+                                                        setAvatarPreview(null);
+                                                    }}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="w-24 h-24 rounded-full bg-muted border-2 border-dashed border-muted-foreground/30 flex items-center justify-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
+                                                <User className="h-10 w-10 text-muted-foreground/50" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        {t('members.avatarHint')}
+                                    </p>
+                                </div>
+
                                 {/* First Name + Last Name Row */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
@@ -678,7 +785,7 @@ export function AddMemberPage() {
                 </div>
             </div>
 
-            {/* Image Cropper Dialog */}
+            {/* Image Cropper Dialog for CNI */}
             <ImageCropper
                 open={showCropDialog}
                 onClose={() => {
@@ -688,6 +795,18 @@ export function AddMemberPage() {
                 imageSrc={rawImageSrc}
                 onCropComplete={handleCroppedImage}
                 aspectRatio={1.59}
+            />
+
+            {/* Image Cropper Dialog for Avatar */}
+            <ImageCropper
+                open={showAvatarCropDialog}
+                onClose={() => {
+                    setShowAvatarCropDialog(false);
+                    setRawAvatarSrc(null);
+                }}
+                imageSrc={rawAvatarSrc}
+                onCropComplete={handleCroppedAvatar}
+                aspectRatio={1}
             />
         </DashboardLayout>
     );

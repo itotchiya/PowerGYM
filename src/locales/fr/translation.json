@@ -272,7 +272,17 @@
         "description": "Description",
         "enterDescription": "Entrez des notes ou une description sur ce membre...",
         "insuranceValidUntil": "Assurance valide jusqu'au",
-        "expiresOn": "Expire le"
+        "expiresOn": "Expire le",
+        "editPlan": "Modifier le plan",
+        "editPlanDesc": "Modifier le plan d'abonnement et les dates du membre",
+        "currentPlanPrice": "Prix du plan actuel",
+        "newPlanPrice": "Prix du nouveau plan",
+        "priceDifference": "Différence de prix",
+        "avatar": "Photo de profil",
+        "uploadAvatar": "Téléverser une photo",
+        "changeAvatar": "Changer la photo",
+        "removeAvatar": "Supprimer la photo",
+        "avatarHint": "Cliquez pour téléverser une photo de profil"
     },
     "plans": {
         "title": "Plans & Tarifs",

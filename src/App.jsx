@@ -17,6 +17,7 @@ import { MembersPage } from '@/pages/members/MembersPage';
 import { MemberProfilePage } from '@/pages/members/MemberProfilePage';
 import { AddMemberPage } from '@/pages/members/AddMemberPage';
 import { AddSubscriptionPage } from '@/pages/members/AddSubscriptionPage';
+import { EditPlanPage } from '@/pages/members/EditPlanPage';
 import { ExpiringSoonPage } from '@/pages/ExpiringSoonPage';
 import { WarningsPage } from '@/pages/WarningsPage';
 import { DeletedMembersPage } from '@/pages/DeletedMembersPage';
@@ -139,6 +140,15 @@ function App() {
           element={
             <ProtectedRoute>
               <AddSubscriptionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/members/:memberId/edit-plan"
+          element={
+            <ProtectedRoute requireOwner>
+              <EditPlanPage />
             </ProtectedRoute>
           }
         />

@@ -280,7 +280,17 @@
         "enterDescription": "Enter any notes or description about this member...",
         "fullyPaid": "Fully Paid",
         "insuranceValidUntil": "Insurance valid until",
-        "expiresOn": "Expires on"
+        "expiresOn": "Expires on",
+        "editPlan": "Edit Plan",
+        "editPlanDesc": "Change the member's subscription plan and dates",
+        "currentPlanPrice": "Current Plan Price",
+        "newPlanPrice": "New Plan Price",
+        "priceDifference": "Price Difference",
+        "avatar": "Profile Photo",
+        "uploadAvatar": "Upload Photo",
+        "changeAvatar": "Change Photo",
+        "removeAvatar": "Remove Photo",
+        "avatarHint": "Click to upload a profile photo"
     },
     "plans": {
         "title": "Plans & Fees",

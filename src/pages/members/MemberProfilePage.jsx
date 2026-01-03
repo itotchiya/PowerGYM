@@ -108,6 +108,14 @@ export function MemberProfilePage() {
         includeInsurance: false
     });
 
+    // Avatar Upload States
+    const [showAvatarUploadDialog, setShowAvatarUploadDialog] = useState(false);
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [showAvatarCropDialog, setShowAvatarCropDialog] = useState(false);
+    const [rawAvatarSrc, setRawAvatarSrc] = useState(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
     const INSURANCE_FEE = 50; // Fixed insurance fee
 
 
@@ -484,6 +492,78 @@ export function MemberProfilePage() {
         }
     };
 
+    // Avatar handling
+    const handleAvatarSelect = (file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please upload an image file');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setRawAvatarSrc(reader.result);
+            setShowAvatarCropDialog(true);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleAvatarCropped = async (croppedBlob) => {
+        // Compress the avatar
+        const options = {
+            maxSizeMB: 0.3,
+            maxWidthOrHeight: 400,
+            useWebWorker: true,
+            fileType: 'image/jpeg',
+        };
+
+        try {
+            const compressedBlob = await imageCompression(croppedBlob, options);
+            setAvatarFile(compressedBlob);
+            const previewUrl = URL.createObjectURL(compressedBlob);
+            setAvatarPreview(previewUrl);
+        } catch (error) {
+            console.error('Compression failed:', error);
+            setAvatarFile(croppedBlob);
+            setAvatarPreview(URL.createObjectURL(croppedBlob));
+        }
+
+        setShowAvatarCropDialog(false);
+        setRawAvatarSrc(null);
+    };
+
+    const handleAvatarUpload = async () => {
+        if (!avatarFile) {
+            toast.error('Please select an avatar image');
+            return;
+        }
+
+        try {
+            setUploadingAvatar(true);
+
+            const safeFirstName = (member.firstName || 'Unknown').replace(/[^a-z0-9]/gi, '');
+            const safeLastName = (member.lastName || 'Unknown').replace(/[^a-z0-9]/gi, '');
+            const avatarFileName = `${member.memberId}-${safeFirstName}-${safeLastName}-avatar.jpg`;
+            const avatarStorageRef = ref(storage, `gyms/${userProfile.gymId}/avatars/${avatarFileName}`);
+
+            await uploadBytes(avatarStorageRef, avatarFile);
+            const downloadURL = await getDownloadURL(avatarStorageRef);
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+            await updateDoc(memberRef, { avatarUrl: downloadURL });
+
+            toast.success('Avatar uploaded successfully');
+            setShowAvatarUploadDialog(false);
+            setAvatarFile(null);
+            setAvatarPreview(null);
+            fetchMemberData();
+        } catch (error) {
+            console.error('Avatar upload failed:', error);
+            toast.error('Failed to upload avatar');
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -545,9 +625,35 @@ export function MemberProfilePage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                <div>
-                                    <p className="text-sm font-medium text-muted-foreground">{t('members.fullName')}</p>
-                                    <p className="text-xl font-bold">{member.firstName} {member.lastName}</p>
+                                {/* Avatar Section */}
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="relative group">
+                                        {member.avatarUrl ? (
+                                            <img
+                                                src={member.avatarUrl}
+                                                alt={`${member.firstName} ${member.lastName}`}
+                                                className="w-20 h-20 rounded-full object-cover border-4 border-background shadow-lg"
+                                            />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center border-4 border-background shadow-lg">
+                                                <User className="h-10 w-10 text-muted-foreground/50" />
+                                            </div>
+                                        )}
+                                        {(isOwner() || isManager()) && (
+                                            <Button
+                                                variant="secondary"
+                                                size="icon"
+                                                className="absolute -bottom-1 -right-1 h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => setShowAvatarUploadDialog(true)}
+                                            >
+                                                <Camera className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">{t('members.fullName')}</p>
+                                        <p className="text-xl font-bold">{member.firstName} {member.lastName}</p>
+                                    </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -1391,7 +1497,7 @@ export function MemberProfilePage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Image Cropper Dialog */}
+            {/* Image Cropper Dialog for CNI */}
             <ImageCropper
                 open={showCropDialog}
                 onClose={() => {
@@ -1405,6 +1511,108 @@ export function MemberProfilePage() {
                     setRawImageSrc(null);
                 }}
                 aspectRatio={1.59} // ID Card aspect ratio
+            />
+
+            {/* Avatar Upload Dialog */}
+            <Dialog open={showAvatarUploadDialog} onOpenChange={setShowAvatarUploadDialog}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>{t('members.uploadAvatar')}</DialogTitle>
+                        <DialogDescription>
+                            {t('members.avatarHint')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        {/* Avatar Preview */}
+                        <div className="flex justify-center">
+                            {avatarPreview ? (
+                                <img
+                                    src={avatarPreview}
+                                    alt="Avatar preview"
+                                    className="w-32 h-32 rounded-full object-cover border-4 border-background shadow-lg"
+                                />
+                            ) : member?.avatarUrl ? (
+                                <img
+                                    src={member.avatarUrl}
+                                    alt="Current avatar"
+                                    className="w-32 h-32 rounded-full object-cover border-4 border-background shadow-lg opacity-50"
+                                />
+                            ) : (
+                                <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center border-4 border-background shadow-lg">
+                                    <User className="h-16 w-16 text-muted-foreground/50" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Upload Options */}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            id="profile-avatar-gallery"
+                            onChange={(e) => handleAvatarSelect(e.target.files?.[0])}
+                        />
+                        <input
+                            type="file"
+                            accept="image/*"
+                            capture="user"
+                            className="hidden"
+                            id="profile-avatar-camera"
+                            onChange={(e) => handleAvatarSelect(e.target.files?.[0])}
+                        />
+
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => document.getElementById('profile-avatar-gallery').click()}
+                            >
+                                <Upload className="h-4 w-4 mr-2" />
+                                {t('members.uploadFromGallery')}
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => document.getElementById('profile-avatar-camera').click()}
+                            >
+                                <Camera className="h-4 w-4 mr-2" />
+                                {t('members.takePhoto')}
+                            </Button>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowAvatarUploadDialog(false);
+                                setAvatarFile(null);
+                                setAvatarPreview(null);
+                            }}
+                        >
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            onClick={handleAvatarUpload}
+                            disabled={!avatarFile || uploadingAvatar}
+                        >
+                            {uploadingAvatar ? t('common.uploading') || 'Uploading...' : t('common.save')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Image Cropper Dialog for Avatar */}
+            <ImageCropper
+                open={showAvatarCropDialog}
+                onClose={() => {
+                    setShowAvatarCropDialog(false);
+                    setRawAvatarSrc(null);
+                }}
+                imageSrc={rawAvatarSrc}
+                onCropComplete={handleAvatarCropped}
+                aspectRatio={1}
             />
 
         </DashboardLayout>
