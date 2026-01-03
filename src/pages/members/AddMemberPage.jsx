@@ -220,20 +220,30 @@ export function AddMemberPage() {
 
             const outstandingBalance = totalPrice - amountPaid;
 
-            // Get next member ID
-            const gymRef = doc(db, 'gyms', userProfile.gymId);
+            // Get next available member ID (reuse deleted member IDs)
             let newMemberId = 1;
 
             try {
-                await runTransaction(db, async (transaction) => {
-                    const gymDoc = await transaction.get(gymRef);
-                    if (!gymDoc.exists()) throw "Gym does not exist!";
-                    const currentCount = gymDoc.data().memberCount || 0;
-                    newMemberId = currentCount + 1;
-                    transaction.update(gymRef, { memberCount: newMemberId });
+                // Get all existing member IDs (including deleted ones to avoid conflicts)
+                const membersQuery = query(collection(db, `gyms/${userProfile.gymId}/members`));
+                const membersSnapshot = await getDocs(membersQuery);
+
+                // Collect all used member IDs
+                const usedIds = new Set();
+                membersSnapshot.docs.forEach(doc => {
+                    const memberId = doc.data().memberId;
+                    if (memberId) {
+                        usedIds.add(Number(memberId));
+                    }
                 });
+
+                // Find the lowest available ID
+                newMemberId = 1;
+                while (usedIds.has(newMemberId)) {
+                    newMemberId++;
+                }
             } catch (e) {
-                console.error("Counter failed", e);
+                console.error("Failed to get available member ID", e);
                 toast.error('Failed to generate member ID');
                 return;
             }
