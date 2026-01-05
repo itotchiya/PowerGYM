@@ -40,6 +40,11 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Avatar,
+    AvatarImage,
+    AvatarFallback
+} from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import {
     collection,
@@ -93,7 +98,7 @@ export function MembersPage() {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(20);
 
     // Forms
     const [memberForm, setMemberForm] = useState({
@@ -258,6 +263,8 @@ export function MembersPage() {
             { header: 'ID', key: 'id', width: 10 },
             { header: 'First Name', key: 'firstName', width: 20 },
             { header: 'Last Name', key: 'lastName', width: 20 },
+            { header: 'Phone', key: 'phone', width: 15 },
+            { header: 'Status', key: 'status', width: 15 },
             { header: 'Plan', key: 'plan', width: 15 },
             { header: 'Payment Status', key: 'paymentStatus', width: 20 },
             { header: 'Insurance Status', key: 'insuranceStatus', width: 20 },
@@ -277,11 +284,15 @@ export function MembersPage() {
             const paymentStatus = outstanding > 0 ? 'Outstanding' : 'Fully Paid';
             const insuranceStatus = isInsurancePaid ? 'Paid' : 'Unpaid';
             const pricePaid = member.totalPaid || 0;
+            const status = getMemberStatus(member);
+            const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1);
 
             const row = worksheet.addRow({
                 id: member.memberId || 'N/A',
                 firstName: member.firstName,
                 lastName: member.lastName,
+                phone: member.phone || 'N/A',
+                status: formattedStatus,
                 plan: plan?.name || 'N/A',
                 paymentStatus: paymentStatus,
                 insuranceStatus: insuranceStatus,
@@ -794,7 +805,7 @@ export function MembersPage() {
     return (
         <DashboardLayout>
             <div className="space-y-6">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight">{t('members.title')}</h2>
                         <p className="text-muted-foreground">
@@ -812,7 +823,7 @@ export function MembersPage() {
                 {/* Filters */}
                 <Card>
                     <CardContent className="p-4">
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+                        <div className="grid grid-cols-2 gap-4 md:grid-cols-2 lg:grid-cols-6">
                             <div className="relative col-span-2 lg:col-span-2">
                                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground rtl:left-auto rtl:right-3" />
                                 <Input
@@ -869,7 +880,7 @@ export function MembersPage() {
                                 </SelectContent>
                             </Select>
 
-                            <div className="flex gap-2 col-span-2 lg:col-span-6 justify-end mt-2">
+                            <div className="flex flex-col sm:flex-row gap-2 col-span-2 lg:col-span-6 justify-end mt-2">
                                 <Select value={sortOption} onValueChange={setSortOption}>
                                     <SelectTrigger className="w-[180px]">
                                         <ArrowUpDown className="mr-2 h-4 w-4" />
@@ -902,6 +913,7 @@ export function MembersPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[80px]">ID</TableHead>
+                                    <TableHead className="w-[40px]"></TableHead>
                                     <TableHead>{t('members.member')}</TableHead>
                                     <TableHead>{t('plans.plan')}</TableHead>
                                     <TableHead>{t('members.payment')}</TableHead>
@@ -927,6 +939,14 @@ export function MembersPage() {
                                             <TableRow key={member.id}>
                                                 <TableCell className="font-mono text-xs text-muted-foreground">
                                                     #{member.memberId || '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Avatar className="h-9 w-9 border">
+                                                        <AvatarImage src={member.avatarUrl} alt={`${member.firstName} ${member.lastName}`} className="object-cover" />
+                                                        <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
+                                                            {member.firstName?.[0]}{member.lastName?.[0]}
+                                                        </AvatarFallback>
+                                                    </Avatar>
                                                 </TableCell>
                                                 <TableCell
                                                     className="cursor-pointer"
@@ -1081,7 +1101,7 @@ export function MembersPage() {
 
                     {/* Pagination */}
                     {filteredMembers.length > 0 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t">
+                        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t gap-4 sm:gap-0">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
                                 <span>{t('common.show')}</span>
                                 <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>

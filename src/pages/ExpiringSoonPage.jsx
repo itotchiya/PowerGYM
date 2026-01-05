@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { TableSkeleton } from '@/components/skeletons/PageSkeletons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     Table,
     TableBody,
@@ -26,6 +28,10 @@ export function ExpiringSoonPage() {
     const [members, setMembers] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(20);
 
     const fetchData = async () => {
         try {
@@ -63,14 +69,19 @@ export function ExpiringSoonPage() {
         fetchData();
     }, [userProfile?.gymId]);
 
-    // Filter members expiring soon (within 7 days)
-    const expiringMembers = members.filter(member => {
-        if (!member.currentSubscription?.endDate) return false;
-        const endDate = new Date(member.currentSubscription.endDate);
-        const today = new Date();
-        const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-        return daysLeft >= 0 && daysLeft <= 7;
-    });
+    // Filter and Sort members expiring soon (within 7 days)
+    const expiringMembers = members
+        .filter(member => {
+            if (!member.currentSubscription?.endDate) return false;
+            const endDate = new Date(member.currentSubscription.endDate);
+            const today = new Date();
+            const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+            return daysLeft >= 0 && daysLeft <= 7;
+        })
+        .sort((a, b) => {
+            if (!a.currentSubscription?.endDate || !b.currentSubscription?.endDate) return 0;
+            return new Date(a.currentSubscription.endDate) - new Date(b.currentSubscription.endDate);
+        });
 
     const getDaysLeft = (member) => {
         if (!member.currentSubscription?.endDate) return 0;
@@ -125,41 +136,86 @@ export function ExpiringSoonPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {expiringMembers.map(member => {
-                                        const plan = plans.find(p => p.id === member.currentSubscription?.planId);
-                                        const daysLeft = getDaysLeft(member);
+                                    {expiringMembers
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map(member => {
+                                            const plan = plans.find(p => p.id === member.currentSubscription?.planId);
+                                            const daysLeft = getDaysLeft(member);
 
-                                        return (
-                                            <TableRow
-                                                key={member.id}
-                                                className="cursor-pointer hover:bg-muted/50"
-                                                onClick={() => navigate(`/members/${member.id}`)}
-                                            >
-                                                <TableCell className="font-medium">
-                                                    {member.firstName} {member.lastName}
-                                                </TableCell>
-                                                <TableCell>{member.email}</TableCell>
-                                                <TableCell>{member.phone}</TableCell>
-                                                <TableCell>{plan?.name || t('common.notAvailable')}</TableCell>
-                                                <TableCell>
-                                                    {new Date(member.currentSubscription.endDate).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge
-                                                        variant={daysLeft <= 3 ? 'destructive' : 'secondary'}
-                                                    >
-                                                        {daysLeft} {daysLeft === 1 ? t('time.day') : t('time.days')}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
+                                            return (
+                                                <TableRow
+                                                    key={member.id}
+                                                    className="cursor-pointer hover:bg-muted/50"
+                                                    onClick={() => navigate(`/members/${member.id}`)}
+                                                >
+                                                    <TableCell className="font-medium">
+                                                        {member.firstName} {member.lastName}
+                                                    </TableCell>
+                                                    <TableCell>{member.email}</TableCell>
+                                                    <TableCell>{member.phone}</TableCell>
+                                                    <TableCell>{plan?.name || t('common.notAvailable')}</TableCell>
+                                                    <TableCell>
+                                                        {new Date(member.currentSubscription.endDate).toLocaleDateString()}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge
+                                                            variant={daysLeft <= 3 ? 'destructive' : 'secondary'}
+                                                        >
+                                                            {daysLeft} {daysLeft === 1 ? t('time.day') : t('time.days')}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                 </TableBody>
                             </Table>
                         )}
                     </CardContent>
+
+                    {/* Pagination */}
+                    {expiringMembers.length > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t gap-4 sm:gap-0">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
+                                <span>{t('common.show')}</span>
+                                <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
+                                    <SelectTrigger className="w-[65px] h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="10">10</SelectItem>
+                                        <SelectItem value="15">15</SelectItem>
+                                        <SelectItem value="20">20</SelectItem>
+                                        <SelectItem value="50">50</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <span className="whitespace-nowrap">{t('common.ofCount', { count: expiringMembers.length })} {t('members.members')}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    {t('common.previous')}
+                                </Button>
+                                <div className="text-sm font-medium">
+                                    {currentPage} / {Math.ceil(expiringMembers.length / itemsPerPage)}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(expiringMembers.length / itemsPerPage), p + 1))}
+                                    disabled={currentPage >= Math.ceil(expiringMembers.length / itemsPerPage)}
+                                >
+                                    {t('common.next')}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </Card>
             </div>
-        </DashboardLayout>
+        </DashboardLayout >
     );
 }
