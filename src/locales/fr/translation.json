@@ -282,7 +282,21 @@
         "uploadAvatar": "Téléverser une photo",
         "changeAvatar": "Changer la photo",
         "removeAvatar": "Supprimer la photo",
-        "avatarHint": "Cliquez pour téléverser une photo de profil"
+        "avatarHint": "Cliquez pour téléverser une photo de profil",
+        "deleteSubscription": "Supprimer l'abonnement",
+        "deleteSubscriptionConfirm": "Êtes-vous sûr de vouloir supprimer cet abonnement?",
+        "deleteSubscriptionWarning": "Cette action est irréversible. Tapez \"delete\" pour confirmer.",
+        "typeDeleteToConfirm": "Tapez 'delete' pour confirmer",
+        "subscriptionDeleted": "Abonnement supprimé avec succès",
+        "status": "Statut",
+        "restoreSubscription": "Restaurer l'abonnement",
+        "subscriptionRestored": "Abonnement restauré avec succès",
+        "insuranceHistory": "Historique d'assurance",
+        "noInsuranceHistory": "Aucun historique d'assurance",
+        "payInsurance": "Payer l'assurance",
+        "insuranceUnpaid": "Non payé",
+        "confirmInsurancePayment": "Êtes-vous sûr de vouloir enregistrer le paiement de l'assurance de {{amount}} MAD ?",
+        "insurancePaid": "Assurance payée avec succès"
     },
     "plans": {
         "title": "Plans & Tarifs",
@@ -381,7 +395,17 @@
         "verifyAndSave": "Vérifier & Enregistrer",
         "verify": "Vérifier",
         "passwordRequiredForEmail": "Votre mot de passe est requis pour changer votre adresse e-mail",
-        "emailAlreadyInUse": "Cet e-mail est déjà utilisé par un autre compte"
+        "emailAlreadyInUse": "Cet e-mail est déjà utilisé par un autre compte",
+        "dataAdministration": "Administration des données",
+        "migratePlanSequences": "Migrer les séquences de plans",
+        "migratePlanSequencesDesc": "Attribuer des numéros ordinaux (1er, 2ème...) à tous les plans des membres",
+        "separateInsurance": "Séparer les paiements d'assurance",
+        "separateInsuranceDesc": "Diviser les paiements initiaux groupés en Plan + Assurance",
+        "run": "Exécuter",
+        "confirmSeparation": "Êtes-vous sûr de vouloir séparer les paiements d'assurance des paiements initiaux groupés pour tous les membres ?",
+        "confirmMigration": "Êtes-vous sûr de vouloir migrer les séquences de plans ? Cela mettra à jour tous les membres.",
+        "migrationSuccess": "Migration réussie pour {{count}} membres",
+        "separationSuccess": "Assurance séparée avec succès pour {{count}} membres"
     },
     "notifications": {
         "title": "Notifications",
@@ -555,5 +579,10 @@
             "plan": "Plan",
             "gym_settings": "Paramètres du gym"
         }
+    },
+    "status": {
+        "active": "Actif",
+        "expired": "Expiré",
+        "deleted": "Supprimé"
     }
 }

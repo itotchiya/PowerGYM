@@ -4,10 +4,20 @@ import { jsPDF } from 'jspdf';
  * Helper function to draw a simple table
  */
 function drawTable(doc, headers, data, startY, options = {}) {
-    const { margin = 14, cellPadding = 4, headerBg = [31, 41, 55], fontSize = 9, rowHeight = 8 } = options;
+    const { margin = 14, cellPadding = 4, headerBg = [31, 41, 55], fontSize = 8, rowHeight = 8 } = options;
     const pageWidth = doc.internal.pageSize.getWidth();
     const tableWidth = pageWidth - margin * 2;
-    const colWidth = tableWidth / headers.length;
+
+    // Custom column width ratios (adjustable based on content)
+    // Indexes: 0: Plan/Date, 1: Start/Type, 2: End/Amount, 3: Duration/Note, 4: Price/Status
+    // We try to give more space to the description columns
+    const colRatios = headers.length === 5
+        ? [0.3, 0.15, 0.15, 0.2, 0.2] // Plan/Note needs more space
+        : headers.length === 4
+            ? [0.15, 0.45, 0.15, 0.25] // Subscription history or Payment history variant
+            : headers.map(() => 1 / headers.length); // Default equal width
+
+    const colWidths = colRatios.map(ratio => tableWidth * ratio);
 
     let y = startY;
 
@@ -18,8 +28,10 @@ function drawTable(doc, headers, data, startY, options = {}) {
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', 'bold');
 
+    let currentX = margin;
     headers.forEach((header, i) => {
-        doc.text(header, margin + i * colWidth + cellPadding, y + rowHeight);
+        doc.text(header, currentX + cellPadding, y + rowHeight);
+        currentX += colWidths[i];
     });
 
     y += rowHeight + cellPadding + 2;
@@ -29,24 +41,78 @@ function drawTable(doc, headers, data, startY, options = {}) {
     doc.setFont('helvetica', 'normal');
 
     data.forEach((row, rowIndex) => {
+        // Calculate max height for this row based on text wrapping
+        let maxLines = 1;
+        const processedCells = row.map((cell, i) => {
+            let text = '';
+            let style = null;
+
+            if (typeof cell === 'object' && cell !== null && cell.content) {
+                text = String(cell.content);
+                style = cell.style;
+            } else {
+                text = String(cell || '');
+            }
+
+            const availableWidth = colWidths[i] - (cellPadding * 2);
+            const wrappedText = doc.splitTextToSize(text, availableWidth);
+            if (wrappedText.length > maxLines) maxLines = wrappedText.length;
+
+            return { lines: wrappedText, style };
+        });
+
+        const currentRowHeight = (maxLines * (fontSize / 2)) + (cellPadding * 2) + 4;
+
+        // Check for page break
+        if (y + currentRowHeight > doc.internal.pageSize.getHeight() - 20) {
+            doc.addPage();
+            y = 20; // Reset Y
+            // Redraw Header on new page
+            doc.setFillColor(...headerBg);
+            doc.rect(margin, y, tableWidth, rowHeight + cellPadding, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(fontSize);
+            doc.setFont('helvetica', 'bold');
+
+            let headerX = margin;
+            headers.forEach((header, i) => {
+                doc.text(header, headerX + cellPadding, y + rowHeight);
+                headerX += colWidths[i];
+            });
+            y += rowHeight + cellPadding + 2;
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
+        }
+
         // Alternating row background
         if (rowIndex % 2 === 0) {
             doc.setFillColor(249, 250, 251);
-            doc.rect(margin, y - 2, tableWidth, rowHeight + 2, 'F');
+            doc.rect(margin, y, tableWidth, currentRowHeight, 'F');
         }
 
-        row.forEach((cell, i) => {
-            const text = String(cell || '').substring(0, 25); // Truncate long text
-            doc.text(text, margin + i * colWidth + cellPadding, y + 4);
+        // Draw Cells
+        let cellX = margin;
+        processedCells.forEach((cellData, i) => {
+            const { lines, style } = cellData;
+
+            // Vertical alignment (simple top padding)
+            const textY = y + cellPadding + 4;
+
+            doc.text(lines, cellX + cellPadding, textY);
+
+            if (style === 'strikethrough') {
+                doc.setLineWidth(0.5);
+                lines.forEach((line, lineIndex) => {
+                    const lineWidth = doc.getTextWidth(line);
+                    const lineY = textY + (lineIndex * (fontSize / 2)); // Approx line height separation
+                    doc.line(cellX + cellPadding, lineY - 1, cellX + cellPadding + lineWidth, lineY - 1);
+                });
+            }
+
+            cellX += colWidths[i];
         });
 
-        y += rowHeight + 2;
-
-        // Check for page break
-        if (y > doc.internal.pageSize.getHeight() - 30) {
-            doc.addPage();
-            y = 20;
-        }
+        y += currentRowHeight;
     });
 
     return y + 5;
@@ -123,15 +189,44 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.text('Subscription History', 14, yPos);
         yPos += 8;
 
-        const subscriptionData = (member.subscriptionHistory || []).slice().reverse().map(sub => [
-            sub.planName || 'Unknown',
-            new Date(sub.startDate).toLocaleDateString(),
-            new Date(sub.endDate).toLocaleDateString(),
-            `${sub.price || 0} MAD`
-        ]);
+        // Calculate active plans for dynamic ranking
+        const activePlans = (member.subscriptionHistory || []).filter(sub => !sub.deleted).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+        const subscriptionData = (member.subscriptionHistory || []).slice().reverse().map(sub => {
+            const isDeleted = sub.deleted;
+            let status = 'Active';
+            let planLabel = sub.planName || 'Unknown';
+
+            if (isDeleted) {
+                status = 'Deleted';
+            } else {
+                if (new Date(sub.endDate) <= new Date()) {
+                    status = 'Expired';
+                }
+
+                // Determine rank among active plans
+                const rank = activePlans.findIndex(p => p.startDate === sub.startDate && p.planId === sub.planId) + 1;
+                if (rank > 0) {
+                    const ordinal = (rank % 10 === 1 && rank % 100 !== 11) ? 'st' :
+                        (rank % 10 === 2 && rank % 100 !== 12) ? 'nd' :
+                            (rank % 10 === 3 && rank % 100 !== 13) ? 'rd' : 'th';
+                    planLabel = `${sub.planName} (${sub.edited ? 'Edited ' : ''}${rank}${ordinal} Plan)`;
+                }
+            }
+
+            const cellStyle = isDeleted ? { style: 'strikethrough' } : {};
+
+            return [
+                { content: planLabel, ...cellStyle },
+                { content: new Date(sub.startDate).toLocaleDateString(), ...cellStyle },
+                { content: new Date(sub.endDate).toLocaleDateString(), ...cellStyle },
+                { content: `${sub.price || 0} MAD`, ...cellStyle },
+                { content: status, ...cellStyle }
+            ];
+        });
 
         if (subscriptionData.length > 0) {
-            yPos = drawTable(doc, ['Plan', 'Start Date', 'End Date', 'Price'], subscriptionData, yPos);
+            yPos = drawTable(doc, ['Plan', 'Start Date', 'End Date', 'Price', 'Status'], subscriptionData, yPos);
         } else {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'italic');
@@ -147,12 +242,43 @@ export function generateMemberFichePDF(member, gymName = 'PowerGYM') {
         doc.text('Payment History', 14, yPos);
         yPos += 8;
 
-        const paymentData = (member.payments || []).slice().reverse().map(payment => [
-            new Date(payment.date).toLocaleDateString(),
-            (payment.type || 'payment').replace('_', ' ').toUpperCase(),
-            `${payment.amount || 0} MAD`,
-            payment.note || '-'
-        ]);
+        const paymentData = (member.payments || []).slice().reverse().map(payment => {
+            const type = (payment.type || 'payment').replace('_', ' ').toUpperCase();
+            const isDeleted = payment.deleted;
+            const cellStyle = isDeleted ? { style: 'strikethrough' } : {};
+
+            // Find linked plan
+            let linkedPlanInfo = '';
+            // We search in activePlans for the one covering this payment
+            // Note: Use a bit of buffer or just match closest start date
+            if (!isDeleted) {
+                const paymentDate = new Date(payment.date);
+                const matchedPlan = activePlans.find(sub => {
+                    const start = new Date(sub.startDate);
+                    const end = new Date(sub.endDate);
+                    // Allow payment to be a bit before start (e.g. deposit) or during
+                    const bufferTime = 24 * 60 * 60 * 1000 * 7; // 7 days buffer before start
+                    return paymentDate >= (start.getTime() - bufferTime) && paymentDate <= end;
+                });
+
+                if (matchedPlan) {
+                    const rank = activePlans.indexOf(matchedPlan) + 1;
+                    const ordinal = (rank % 10 === 1 && rank % 100 !== 11) ? 'st' :
+                        (rank % 10 === 2 && rank % 100 !== 12) ? 'nd' :
+                            (rank % 10 === 3 && rank % 100 !== 13) ? 'rd' : 'th';
+                    linkedPlanInfo = ` - For ${rank}${ordinal} Plan`;
+
+                    if (matchedPlan.edited) linkedPlanInfo += " (Edited)";
+                }
+            }
+
+            return [
+                { content: new Date(payment.date).toLocaleDateString(), ...cellStyle },
+                { content: `${type} (Deleted)`, ...cellStyle, content: isDeleted ? `${type} (Deleted)` : type + linkedPlanInfo },
+                { content: `${payment.amount || 0} MAD`, ...cellStyle },
+                { content: payment.note || '-', ...cellStyle }
+            ];
+        });
 
         if (paymentData.length > 0) {
             yPos = drawTable(doc, ['Date', 'Type', 'Amount', 'Note'], paymentData, yPos);

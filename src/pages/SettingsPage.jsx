@@ -22,11 +22,11 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { doc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
 import { createGymSettingsAuditLog, AUDIT_ACTIONS } from "@/lib/auditLog";
-import { ChevronRight, Lock, Building, Wallet, ShieldCheck, PenSquare, Globe, Moon, Mail, Phone } from "lucide-react";
+import { ChevronRight, Lock, Building, Wallet, ShieldCheck, PenSquare, Globe, Moon, Mail, Phone, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
@@ -454,6 +454,116 @@ export function SettingsPage() {
         }
     };
 
+    const handleMigratePlanSequences = async () => {
+        if (!confirm(t('settings.confirmMigration'))) return;
+        setIsLoading(true);
+        try {
+            const membersRef = collection(db, `gyms/${userProfile.gymId}/members`);
+            const snapshot = await getDocs(membersRef);
+            let updatedCount = 0;
+
+            const batchPromises = snapshot.docs.map(async (docSnap) => {
+                const member = docSnap.data();
+                if (!member.subscriptionHistory || member.subscriptionHistory.length === 0) return;
+
+                const history = member.subscriptionHistory;
+                const newHistory = history.map((sub, index) => ({
+                    ...sub,
+                    sequenceNumber: index + 1
+                }));
+
+                let newCurrentSub = member.currentSubscription;
+                if (newCurrentSub) {
+                    const matchingIndex = newHistory.findIndex(h => h.startDate === newCurrentSub.startDate && h.planId === newCurrentSub.planId);
+                    if (matchingIndex !== -1) {
+                        newCurrentSub = { ...newCurrentSub, sequenceNumber: matchingIndex + 1 };
+                    }
+                }
+
+                await updateDoc(doc(db, `gyms/${userProfile.gymId}/members`, docSnap.id), {
+                    subscriptionHistory: newHistory,
+                    currentSubscription: newCurrentSub
+                });
+                updatedCount++;
+            });
+
+            await Promise.all(batchPromises);
+            toast.success(t('settings.migrationSuccess', { count: updatedCount }));
+
+        } catch (error) {
+            console.error("Migration failed:", error);
+            toast.error("Migration failed");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSeparateInsurancePayments = async () => {
+        if (!confirm(t('settings.confirmSeparation'))) return;
+        setIsLoading(true);
+        try {
+            const membersRef = collection(db, `gyms/${userProfile.gymId}/members`);
+            const snapshot = await getDocs(membersRef);
+            let updatedCount = 0;
+
+            const batchPromises = snapshot.docs.map(async (docSnap) => {
+                const member = docSnap.data();
+                // Check if insurance is active and has a fee
+                if (member.insuranceStatus !== 'active' || !member.insuranceFee || member.insuranceFee <= 0) return;
+
+                // Check if already separated (has any payment with type 'insurance')
+                const hasInsurancePayment = member.payments?.some(p => p.type === 'insurance');
+                if (hasInsurancePayment) return;
+
+                // Find the candidate payment to split (usually the first one or 'initial_payment')
+                const payments = member.payments || [];
+                // Find first payment with sufficient amount that isn't deleted
+                const candidateIndex = payments.findIndex(p => !p.deleted && p.amount >= member.insuranceFee);
+
+                if (candidateIndex === -1) return; // No suitable payment found
+
+                // Create deep copy of payments
+                const newPayments = [...payments];
+                const originalPayment = newPayments[candidateIndex];
+
+                // Create new insurance payment
+                const insurancePayment = {
+                    date: originalPayment.date,
+                    amount: member.insuranceFee,
+                    type: 'insurance',
+                    note: 'Migrated Insurance Payment',
+                    method: originalPayment.method || 'cash',
+                    receivedBy: originalPayment.receivedBy || 'System',
+                    deleted: false
+                };
+
+                // Update original payment
+                newPayments[candidateIndex] = {
+                    ...originalPayment,
+                    amount: originalPayment.amount - member.insuranceFee,
+                    note: (originalPayment.note ? originalPayment.note + ' ' : '') + '(Split from bundle)'
+                };
+
+                // Insert insurance payment right after
+                newPayments.splice(candidateIndex + 1, 0, insurancePayment);
+
+                await updateDoc(doc(db, `gyms/${userProfile.gymId}/members`, docSnap.id), {
+                    payments: newPayments
+                });
+                updatedCount++;
+            });
+
+            await Promise.all(batchPromises);
+            toast.success(t('settings.separationSuccess', { count: updatedCount }));
+
+        } catch (error) {
+            console.error("Migration failed:", error);
+            toast.error("Migration failed");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <DashboardLayout hideNav>
             <div className="max-w-2xl mx-auto py-8 px-4 space-y-8">
@@ -668,6 +778,58 @@ export function SettingsPage() {
                                 <div className="text-xs text-muted-foreground">{t('common.active')}</div>
                             </div>
 
+                        </div>
+                    </div>
+                )}
+
+                {/* Data Administration - Owner Only */}
+                {isOwner && (
+                    <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-muted-foreground ml-4 uppercase tracking-wider">{t('settings.dataAdministration')}</h3>
+                        <div className="rounded-[20px] overflow-hidden">
+                            <div
+                                onClick={handleMigratePlanSequences}
+                                className={cn(
+                                    "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                    "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-slate-500/10 text-slate-500">
+                                        <Database className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.migratePlanSequences')}</div>
+                                        <div className="text-sm text-muted-foreground">{t('settings.migratePlanSequencesDesc')}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                    <span>{t('settings.run')}</span>
+                                    <ChevronRight className="w-4 h-4" />
+                                </div>
+                            </div>
+
+                            <div
+                                onClick={handleSeparateInsurancePayments}
+                                className={cn(
+                                    "group flex items-center justify-between p-4 transition-all cursor-pointer rounded-[4px] mb-[4px] last:mb-0",
+                                    "bg-black/4 dark:bg-white/6 hover:bg-black/8 dark:hover:bg-white/10 shadow-none backdrop-blur-sm"
+                                )}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 rounded-full bg-emerald-500/10 text-emerald-500">
+                                        <ShieldCheck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="font-medium">{t('settings.separateInsurance')}</div>
+                                        <div className="text-sm text-muted-foreground">{t('settings.separateInsuranceDesc')}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                    <span>{t('settings.run')}</span>
+                                    <ChevronRight className="w-4 h-4" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

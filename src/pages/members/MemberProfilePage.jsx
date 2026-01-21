@@ -56,7 +56,9 @@ import {
     FileText,
     Download,
     Banknote,
-    Pencil
+    Pencil,
+    Trash2,
+    RotateCcw
 } from 'lucide-react';
 import { generateMemberFichePDF, generateSubscriptionPDF } from '@/utils/generatePDF';
 import { ImageCropper } from '@/components/ui/image-cropper';
@@ -115,6 +117,15 @@ export function MemberProfilePage() {
     const [showAvatarCropDialog, setShowAvatarCropDialog] = useState(false);
     const [rawAvatarSrc, setRawAvatarSrc] = useState(null);
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+    // Delete Subscription Dialog States
+    const [showDeleteSubscriptionDialog, setShowDeleteSubscriptionDialog] = useState(false);
+    const [subscriptionToDelete, setSubscriptionToDelete] = useState(null);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deletingSubscription, setDeletingSubscription] = useState(false);
+
+    // Restore Subscription State
+    const [restoringSubscription, setRestoringSubscription] = useState(false);
 
     const INSURANCE_FEE = 50; // Fixed insurance fee
 
@@ -375,6 +386,208 @@ export function MemberProfilePage() {
         if (file) {
             setUploadFile(file);
         }
+    };
+
+    // Delete Subscription Handler (Soft Delete)
+    const handleDeleteSubscription = async () => {
+        if (deleteConfirmText.toLowerCase() !== 'delete') {
+            toast.error(t('members.typeDeleteToConfirm'));
+            return;
+        }
+
+        if (!subscriptionToDelete || !member || !userProfile?.gymId) return;
+
+        try {
+            setDeletingSubscription(true);
+
+            const history = [...(member.subscriptionHistory || [])];
+            // Mark the subscription as deleted
+            if (history[subscriptionToDelete.index]) {
+                history[subscriptionToDelete.index] = {
+                    ...history[subscriptionToDelete.index],
+                    deleted: true,
+                    deletedAt: new Date().toISOString()
+                };
+            }
+
+            // Find and soft delete the corresponding payment from payments array
+            const payments = [...(member.payments || [])];
+            const subscriptionCreatedAt = subscriptionToDelete.createdAt ? new Date(subscriptionToDelete.createdAt).getTime() : null;
+            const planName = subscriptionToDelete.planName || '';
+
+            let paymentToRemoveIndex = -1;
+            let paymentAmount = 0;
+
+            for (let i = 0; i < payments.length; i++) {
+                const payment = payments[i];
+                // Skip already deleted payments
+                if (payment.deleted) continue;
+
+                const paymentDate = new Date(payment.date).getTime();
+                const noteContainsPlan = payment.note && payment.note.includes(planName);
+
+                // Check if payment note contains the plan name and dates are within 1 minute of each other
+                if (noteContainsPlan && subscriptionCreatedAt) {
+                    const timeDiff = Math.abs(paymentDate - subscriptionCreatedAt);
+                    if (timeDiff < 60000) { // Within 1 minute
+                        paymentToRemoveIndex = i;
+                        paymentAmount = Number(payment.amount) || 0;
+                        break;
+                    }
+                }
+            }
+
+            // Mark payment as deleted if found
+            if (paymentToRemoveIndex >= 0) {
+                payments[paymentToRemoveIndex] = {
+                    ...payments[paymentToRemoveIndex],
+                    deleted: true,
+                    deletedAt: new Date().toISOString()
+                };
+            }
+
+            // Calculate the amount to subtract from totalPaid
+            const amountToSubtract = paymentAmount > 0 ? paymentAmount : (Number(subscriptionToDelete.price) || 0);
+            const newTotalPaid = Math.max(0, (member.totalPaid || 0) - amountToSubtract);
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+            await updateDoc(memberRef, {
+                subscriptionHistory: history,
+                payments: payments,
+                totalPaid: newTotalPaid,
+                updatedAt: serverTimestamp()
+            });
+
+            toast.success(t('members.subscriptionDeleted'));
+            setShowDeleteSubscriptionDialog(false);
+            setSubscriptionToDelete(null);
+            setDeleteConfirmText('');
+            fetchMemberData();
+        } catch (error) {
+            console.error('Error deleting subscription:', error);
+            toast.error('Failed to delete subscription');
+        } finally {
+            setDeletingSubscription(false);
+        }
+    };
+
+    const handlePayInsurance = async () => {
+        if (!confirm(t('members.confirmInsurancePayment', { amount: member.insuranceFee }))) return;
+
+        try {
+            const paymentAmount = Number(member.insuranceFee);
+            const newPayment = {
+                amount: paymentAmount,
+                type: 'insurance',
+                date: new Date().toISOString(),
+                note: t('members.insuranceHistory'), // Use localized note or just "Insurance Fee"
+            };
+
+            const memberRef = doc(db, 'gyms', userProfile.gymId, 'members', member.id);
+            await updateDoc(memberRef, {
+                payments: arrayUnion(newPayment),
+                outstandingBalance: (member.outstandingBalance || 0) + paymentAmount - paymentAmount, // Effectively 0 change if we assume fee was already owed? 
+                // Actually, if it's "Unpaid", it implies they OWE it.
+                // If we pay it, they pay cash.
+                // The balance logic in this app is a bit ambiguous (Outstanding = Price - Paid).
+                // If they have unpaid insurance, their Outstanding SHOULD include the fee.
+                // Paying it reduces outstanding.
+                // However, our current logic usually calculates outstanding on the fly or updates it.
+                // Let's safe-update outstandingBalance: 
+                // If they pay, we assume they hand over cash.
+                totalPaid: (member.totalPaid || 0) + paymentAmount
+            });
+
+            toast.success(t('members.insurancePaid'));
+            fetchMember();
+        } catch (error) {
+            console.error("Error paying insurance:", error);
+            toast.error("Failed to pay insurance");
+        }
+    };
+
+    // Restore Subscription Handler
+    const handleRestoreSubscription = async (subscription, originalIndex) => {
+        if (!member || !userProfile?.gymId) return;
+
+        try {
+            setRestoringSubscription(true);
+
+            const history = [...(member.subscriptionHistory || [])];
+            // Mark the subscription as active (not deleted)
+            if (history[originalIndex]) {
+                const { deleted, deletedAt, ...restoredSubscription } = history[originalIndex];
+                history[originalIndex] = {
+                    ...restoredSubscription,
+                    deleted: false,
+                    deletedAt: null
+                };
+            }
+
+            // Find and restore the corresponding payment
+            const payments = [...(member.payments || [])];
+            const subscriptionCreatedAt = subscription.createdAt ? new Date(subscription.createdAt).getTime() : null;
+            const planName = subscription.planName || '';
+
+            let paymentToRestoreIndex = -1;
+            let paymentAmount = 0;
+
+            for (let i = 0; i < payments.length; i++) {
+                const payment = payments[i];
+                // Only look for deleted payments
+                if (!payment.deleted) continue;
+
+                const paymentDate = new Date(payment.date).getTime();
+                const noteContainsPlan = payment.note && payment.note.includes(planName);
+
+                // Use same matching logic as delete
+                if (noteContainsPlan && subscriptionCreatedAt) {
+                    const timeDiff = Math.abs(paymentDate - subscriptionCreatedAt);
+                    if (timeDiff < 60000) { // Within 1 minute
+                        paymentToRestoreIndex = i;
+                        paymentAmount = Number(payment.amount) || 0;
+                        break;
+                    }
+                }
+            }
+
+            // Restore payment if found
+            if (paymentToRestoreIndex >= 0) {
+                const { deleted, deletedAt, ...restoredPayment } = payments[paymentToRestoreIndex];
+                payments[paymentToRestoreIndex] = {
+                    ...restoredPayment,
+                    deleted: false,
+                    deletedAt: null
+                };
+            }
+
+            // Add amount back to totalPaid
+            const amountToAdd = paymentAmount > 0 ? paymentAmount : (Number(subscription.price) || 0);
+            const newTotalPaid = (member.totalPaid || 0) + amountToAdd;
+
+            const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);
+            await updateDoc(memberRef, {
+                subscriptionHistory: history,
+                payments: payments,
+                totalPaid: newTotalPaid,
+                updatedAt: serverTimestamp()
+            });
+
+            toast.success(t('members.subscriptionRestored'));
+            fetchMemberData();
+        } catch (error) {
+            console.error('Error restoring subscription:', error);
+            toast.error('Failed to restore subscription');
+        } finally {
+            setRestoringSubscription(false);
+        }
+    };
+
+    // Open Delete Subscription Dialog
+    const openDeleteSubscriptionDialog = (subscription, originalIndex) => {
+        setSubscriptionToDelete({ ...subscription, index: originalIndex });
+        setDeleteConfirmText('');
+        setShowDeleteSubscriptionDialog(true);
     };
 
     const openEditCNIDialog = () => {
@@ -873,38 +1086,202 @@ export function MemberProfilePage() {
                                     <TableHead>{t('members.endDate')}</TableHead>
                                     <TableHead>{t('plans.duration')}</TableHead>
                                     <TableHead>{t('plans.price')}</TableHead>
+                                    <TableHead>{t('members.status')}</TableHead>
                                     {isOwner() && <TableHead className="text-right">{t('common.actions')}</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {member.subscriptionHistory?.slice().reverse().map((sub, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell className="font-medium">{sub.planName || 'Unknown'}</TableCell>
-                                        <TableCell>{new Date(sub.startDate).toLocaleDateString()}</TableCell>
-                                        <TableCell>{new Date(sub.endDate).toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            {Math.ceil((new Date(sub.endDate) - new Date(sub.startDate)) / (1000 * 60 * 60 * 24))} {t('time.days')}
-                                        </TableCell>
-                                        <TableCell>{sub.price} MAD</TableCell>
-                                        {isOwner() && (
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => generateSubscriptionPDF(member, sub, userProfile?.gymName)}
-                                                    title="Download Subscription PDF"
-                                                >
-                                                    <Download className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                        )}
-                                    </TableRow>
-                                ))}
+                                {(() => {
+                                    // Calculate active plans for dynamic ranking (same logic as PDF)
+                                    const activePlans = (member.subscriptionHistory || []).filter(sub => !sub.deleted).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+                                    return member.subscriptionHistory?.slice().reverse().map((sub, i) => {
+                                        // Calculate original index (since array is reversed for display)
+                                        const originalIndex = member.subscriptionHistory.length - 1 - i;
+                                        const isDeleted = sub.deleted;
+                                        const isActive = !isDeleted && new Date(sub.endDate) > new Date();
+
+                                        let rankDisplay = null;
+                                        if (!isDeleted) {
+                                            const rank = activePlans.findIndex(p => p.startDate === sub.startDate && p.planId === sub.planId) + 1;
+                                            if (rank > 0) {
+                                                const ordinal = (rank % 10 === 1 && rank % 100 !== 11) ? 'st' :
+                                                    (rank % 10 === 2 && rank % 100 !== 12) ? 'nd' :
+                                                        (rank % 10 === 3 && rank % 100 !== 13) ? 'rd' : 'th';
+                                                rankDisplay = `${rank}${ordinal} Plan`;
+                                            }
+                                        }
+
+                                        return (
+                                            <TableRow key={i} className={isDeleted ? "opacity-50 bg-muted/50" : ""}>
+                                                <TableCell className="font-medium">
+                                                    <span className={isDeleted ? "line-through" : ""}>
+                                                        {sub.planName || 'Unknown'}
+                                                        {rankDisplay && (
+                                                            <span className="block text-xs text-muted-foreground font-normal">
+                                                                {sub.edited ? 'Edited ' : ''}{rankDisplay}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className={isDeleted ? "line-through" : ""}>{new Date(sub.startDate).toLocaleDateString()}</TableCell>
+                                                <TableCell className={isDeleted ? "line-through" : ""}>{new Date(sub.endDate).toLocaleDateString()}</TableCell>
+                                                <TableCell className={isDeleted ? "line-through" : ""}>
+                                                    {Math.ceil((new Date(sub.endDate) - new Date(sub.startDate)) / (1000 * 60 * 60 * 24))} {t('time.days')}
+                                                </TableCell>
+                                                <TableCell className={isDeleted ? "line-through" : ""}>{sub.price} MAD</TableCell>
+                                                <TableCell>
+                                                    {isDeleted ? (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400">
+                                                            {t('status.deleted')}
+                                                        </span>
+                                                    ) : isActive ? (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                            {t('status.active')}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                                            {t('status.expired')}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                {isOwner() && (
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            {isDeleted ? (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => handleRestoreSubscription(sub, originalIndex)}
+                                                                    title={t('members.restoreSubscription')}
+                                                                    disabled={restoringSubscription}
+                                                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                >
+                                                                    <RotateCcw className="h-4 w-4" />
+                                                                </Button>
+                                                            ) : (
+                                                                <>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() => generateSubscriptionPDF(member, sub, userProfile?.gymName)}
+                                                                        title="Download Subscription PDF"
+                                                                    >
+                                                                        <Download className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() => openDeleteSubscriptionDialog(sub, originalIndex)}
+                                                                        title={t('members.deleteSubscription')}
+                                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                )}
+                                            </TableRow>
+                                        );
+                                    });
+                                })()}
                                 {(!member.subscriptionHistory || member.subscriptionHistory.length === 0) && (
                                     <TableRow>
                                         <TableCell colSpan={isOwner() ? 6 : 5} className="text-center text-muted-foreground">{t('members.noSubscriptionHistory')}</TableCell>
                                     </TableRow>
                                 )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+
+                {/* Insurance History */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>{t('members.insuranceHistory') || 'Insurance History'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>{t('members.date')}</TableHead>
+                                    <TableHead>{t('members.amount')}</TableHead>
+                                    <TableHead>{t('members.note')}</TableHead>
+                                    <TableHead>{t('members.status')}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {(() => {
+                                    const insurancePayments = member.payments?.filter(p => p.type === 'insurance').slice().reverse() || [];
+                                    const hasActiveInsurancePayment = insurancePayments.some(p => !p.deleted);
+                                    const isInsuranceRequired = member.insuranceStatus === 'active' || (member.insuranceFee && member.insuranceFee > 0);
+
+                                    return (
+                                        <>
+                                            {insurancePayments.map((payment, index) => {
+                                                const isDeleted = payment.deleted;
+                                                return (
+                                                    <TableRow key={index} className={isDeleted ? "opacity-50 bg-muted/50" : ""}>
+                                                        <TableCell className={isDeleted ? "line-through" : ""}>
+                                                            {new Date(payment.date).toLocaleDateString()}
+                                                        </TableCell>
+                                                        <TableCell className={`font-bold ${isDeleted ? "line-through text-muted-foreground" : "text-green-600"}`}>
+                                                            {payment.amount} MAD
+                                                        </TableCell>
+                                                        <TableCell className={isDeleted ? "line-through" : ""}>
+                                                            {payment.note || '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {isDeleted ? (
+                                                                <span className="text-xs text-destructive font-medium">({t('status.deleted')})</span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                                    {t('status.active')}
+                                                                </span>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+
+                                            {/* Unpaid Status Row */}
+                                            {isInsuranceRequired && !hasActiveInsurancePayment && (
+                                                <TableRow className="bg-red-50 dark:bg-red-900/10">
+                                                    <TableCell>-</TableCell>
+                                                    <TableCell className="font-bold text-destructive">
+                                                        {member.insuranceFee} MAD
+                                                    </TableCell>
+                                                    <TableCell>-</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                                                {t('members.insuranceUnpaid')}
+                                                            </span>
+                                                            {isOwner() && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 text-xs border-red-200 hover:bg-red-100 hover:text-red-700 dark:border-red-800 dark:hover:bg-red-900/50"
+                                                                    onClick={() => handlePayInsurance(member)}
+                                                                >
+                                                                    {t('members.payInsurance')}
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+
+                                            {(!isInsuranceRequired && insurancePayments.length === 0) && (
+                                                <TableRow>
+                                                    <TableCell colSpan={4} className="text-center text-muted-foreground">{t('members.noInsuranceHistory')}</TableCell>
+                                                </TableRow>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </TableBody>
                         </Table>
                     </CardContent>
@@ -926,25 +1303,62 @@ export function MemberProfilePage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {member.payments?.slice().reverse().map((payment, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span className="font-medium">{new Date(payment.date).toLocaleDateString()}</span>
-                                                <span className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleTimeString()}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="uppercase text-xs">
-                                                {payment.type?.replace('_', ' ') || 'Payment'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="font-bold text-green-600">
-                                            +{payment.amount} MAD
-                                        </TableCell>
-                                        <TableCell className="text-muted-foreground text-sm">{payment.note || '-'}</TableCell>
-                                    </TableRow>
-                                ))}
+                                {member.payments?.filter(p => p.type !== 'insurance').slice().reverse().map((payment, index) => {
+                                    const isDeleted = payment.deleted;
+
+                                    // Calculate active plans for linking
+                                    const activePlans = (member.subscriptionHistory || []).filter(sub => !sub.deleted).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+                                    let linkedPlanInfo = '';
+                                    if (!isDeleted) {
+                                        const paymentDate = new Date(payment.date);
+                                        const matchedPlan = activePlans.find(sub => {
+                                            const start = new Date(sub.startDate);
+                                            const end = new Date(sub.endDate);
+                                            const bufferTime = 24 * 60 * 60 * 1000 * 7;
+                                            return paymentDate >= (start.getTime() - bufferTime) && paymentDate <= end;
+                                        });
+
+                                        if (matchedPlan) {
+                                            const rank = activePlans.indexOf(matchedPlan) + 1;
+                                            const ordinal = (rank % 10 === 1 && rank % 100 !== 11) ? 'st' :
+                                                (rank % 10 === 2 && rank % 100 !== 12) ? 'nd' :
+                                                    (rank % 10 === 3 && rank % 100 !== 13) ? 'rd' : 'th';
+                                            linkedPlanInfo = `${rank}${ordinal} Plan: ${matchedPlan.planName || 'Unknown'} (ID: ${matchedPlan.planId || matchedPlan.id})`;
+                                            if (matchedPlan.edited) linkedPlanInfo += " (Edited)";
+                                        }
+                                    }
+
+                                    return (
+                                        <TableRow key={index} className={isDeleted ? "opacity-50 bg-muted/50" : ""}>
+                                            <TableCell className={isDeleted ? "line-through" : ""}>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{new Date(payment.date).toLocaleDateString()}</span>
+                                                    <span className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleTimeString()}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className={isDeleted ? "line-through" : ""}>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="outline" className="uppercase text-xs">
+                                                            {payment.type?.replace('_', ' ') || 'Payment'}
+                                                        </Badge>
+                                                        {isDeleted && <span className="text-xs text-destructive font-medium">({t('status.deleted')})</span>}
+                                                    </div>
+                                                    {linkedPlanInfo && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {linkedPlanInfo}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className={`font-bold ${isDeleted ? "line-through text-muted-foreground" : "text-green-600"}`}>
+                                                +{payment.amount} MAD
+                                            </TableCell>
+                                            <TableCell className={`text-sm ${isDeleted ? "line-through text-muted-foreground" : "text-muted-foreground"}`}>{payment.note || '-'}</TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                                 {(!member.payments || member.payments.length === 0) && (
                                     <TableRow>
                                         <TableCell colSpan={4} className="text-center text-muted-foreground">{t('members.noPayments')}</TableCell>
@@ -1614,6 +2028,72 @@ export function MemberProfilePage() {
                 onCropComplete={handleAvatarCropped}
                 aspectRatio={1}
             />
+
+            {/* Delete Subscription Confirmation Dialog */}
+            <Dialog open={showDeleteSubscriptionDialog} onOpenChange={(open) => {
+                setShowDeleteSubscriptionDialog(open);
+                if (!open) {
+                    setSubscriptionToDelete(null);
+                    setDeleteConfirmText('');
+                }
+            }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <Trash2 className="h-5 w-5" />
+                            {t('members.deleteSubscription')}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {t('members.deleteSubscriptionConfirm')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        {subscriptionToDelete && (
+                            <div className="bg-muted/50 p-3 rounded-lg border">
+                                <p className="font-medium">{subscriptionToDelete.planName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {new Date(subscriptionToDelete.startDate).toLocaleDateString()} - {new Date(subscriptionToDelete.endDate).toLocaleDateString()}
+                                </p>
+                            </div>
+                        )}
+                        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                            <p className="text-sm text-destructive font-medium flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                {t('members.deleteSubscriptionWarning')}
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="delete-confirm">{t('members.typeDeleteToConfirm')}</Label>
+                            <Input
+                                id="delete-confirm"
+                                value={deleteConfirmText}
+                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                placeholder="delete"
+                                className="font-mono"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowDeleteSubscriptionDialog(false);
+                                setSubscriptionToDelete(null);
+                                setDeleteConfirmText('');
+                            }}
+                        >
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteSubscription}
+                            disabled={deleteConfirmText.toLowerCase() !== 'delete' || deletingSubscription}
+                        >
+                            {deletingSubscription ? t('common.processing') : t('common.delete')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
         </DashboardLayout>
     );

@@ -272,7 +272,21 @@
         "description": "الوصف",
         "enterDescription": "أدخل أي ملاحظات أو وصف حول هذا العضو...",
         "insuranceValidUntil": "التأمين صالح لغاية",
-        "expiresOn": "تنتهي الصلاحية في"
+        "expiresOn": "تنتهي الصلاحية في",
+        "deleteSubscription": "حذف الاشتراك",
+        "deleteSubscriptionConfirm": "هل أنت متأكد من حذف هذا الاشتراك؟",
+        "deleteSubscriptionWarning": "لا يمكن التراجع عن هذا الإجراء. اكتب \"delete\" للتأكيد.",
+        "typeDeleteToConfirm": "اكتب 'delete' للتأكيد",
+        "subscriptionDeleted": "تم حذف الاشتراك بنجاح",
+        "status": "الحالة",
+        "restoreSubscription": "استعادة الاشتراك",
+        "subscriptionRestored": "تم استعادة الاشتراك بنجاح",
+        "insuranceHistory": "سجل التأمين",
+        "noInsuranceHistory": "لا يوجد سجل تأمين",
+        "payInsurance": "دفع التأمين",
+        "insuranceUnpaid": "غير مدفوع",
+        "confirmInsurancePayment": "هل أنت متأكد أنك تريد تسجيل دفع التأمين بمبلغ {{amount}} درهم؟",
+        "insurancePaid": "تم دفع التأمين بنجاح"
     },
     "plans": {
         "title": "الخطط والرسوم",
@@ -371,7 +385,17 @@
         "verifyAndSave": "تحقق وحفظ",
         "verify": "تحقق",
         "passwordRequiredForEmail": "كلمة المرور مطلوبة لتغيير عنوان بريدك الإلكتروني",
-        "emailAlreadyInUse": "هذا البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر"
+        "emailAlreadyInUse": "هذا البريد الإلكتروني مستخدم بالفعل من قبل حساب آخر",
+        "dataAdministration": "إدارة البيانات",
+        "migratePlanSequences": "ترحيل تسلسل الخطط",
+        "migratePlanSequencesDesc": "تعيين أرقام ترتيبية (الأول، الثاني...) لجميع خطط الأعضاء",
+        "separateInsurance": "فصل مدفوعات التأمين",
+        "separateInsuranceDesc": "تقسيم الحزم الأولية إلى خطة + تأمين",
+        "run": "تشغيل",
+        "confirmSeparation": "هل أنت متأكد أنك تريد فصل مدفوعات التأمين عن المدفوعات الأولية المجمعة لجميع الأعضاء؟",
+        "confirmMigration": "هل أنت متأكد أنك تريد ترحيل تسلسل الخطط؟ سيؤدي هذا إلى تحديث جميع الأعضاء.",
+        "migrationSuccess": "تم ترحيل {{count}} عضو بنجاح",
+        "separationSuccess": "تم فصل التأمين لـ {{count}} عضو بنجاح"
     },
     "notifications": {
         "title": "الإشعارات",
@@ -545,5 +569,10 @@
             "plan": "خطة",
             "gym_settings": "إعدادات النادي"
         }
+    },
+    "status": {
+        "active": "نشط",
+        "expired": "منتهي",
+        "deleted": "محذوف"
     }
 }

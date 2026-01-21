@@ -158,7 +158,8 @@ export function EditPlanPage() {
                 startDate: subStartDate.toISOString(),
                 endDate: endDate.toISOString(),
                 price: planPrice,
-                status: 'active'
+                status: 'active',
+                sequenceNumber: (member.subscriptionHistory?.length || 0) + 1
             };
 
             const memberRef = doc(db, `gyms/${userProfile.gymId}/members`, memberId);

@@ -43,12 +43,7 @@
         "ofCount": "of {{count}}",
         "loadError": "Failed to load data",
         "optional": "Optional",
-        "yes": "Yes",
-        "no": "No",
         "change": "Change",
-        "saving": "Saving...",
-        "save": "Save",
-        "cancel": "Cancel",
         "processing": "Processing..."
     },
     "nav": {
@@ -290,7 +285,21 @@
         "uploadAvatar": "Upload Photo",
         "changeAvatar": "Change Photo",
         "removeAvatar": "Remove Photo",
-        "avatarHint": "Click to upload a profile photo"
+        "avatarHint": "Click to upload a profile photo",
+        "deleteSubscription": "Delete Subscription",
+        "deleteSubscriptionConfirm": "Are you sure you want to delete this subscription?",
+        "deleteSubscriptionWarning": "This action cannot be undone. Type \"delete\" to confirm.",
+        "typeDeleteToConfirm": "Type 'delete' to confirm",
+        "subscriptionDeleted": "Subscription deleted successfully",
+        "status": "Status",
+        "restoreSubscription": "Restore Subscription",
+        "subscriptionRestored": "Subscription restored successfully",
+        "insuranceHistory": "Insurance History",
+        "noInsuranceHistory": "No insurance history",
+        "payInsurance": "Pay Insurance",
+        "insuranceUnpaid": "Unpaid",
+        "confirmInsurancePayment": "Are you sure you want to record the insurance payment of {{amount}} MAD?",
+        "insurancePaid": "Insurance paid successfully"
     },
     "plans": {
         "title": "Plans & Fees",
@@ -389,7 +398,18 @@
         "verifyAndSave": "Verify & Save",
         "verify": "Verify",
         "passwordRequiredForEmail": "Your password is required to change your email address",
-        "emailAlreadyInUse": "This email is already in use by another account"
+        "passwordRequiredForEmail": "Your password is required to change your email address",
+        "emailAlreadyInUse": "This email is already in use by another account",
+        "dataAdministration": "Data Administration",
+        "migratePlanSequences": "Migrate Plan Sequences",
+        "migratePlanSequencesDesc": "Assign ordinal numbers (1st, 2nd...) to all member plans",
+        "separateInsurance": "Separate Insurance Payments",
+        "separateInsuranceDesc": "Split bundled initial payments into Plan + Insurance",
+        "run": "Run",
+        "confirmSeparation": "Are you sure you want to separate insurance payments from bundled initial payments for all members?",
+        "confirmMigration": "Are you sure you want to migrate plan sequences? This will update all members.",
+        "migrationSuccess": "Migrated {{count}} members successfully",
+        "separationSuccess": "Separated insurance for {{count}} members successfully"
     },
     "notifications": {
         "title": "Notifications",
@@ -569,5 +589,10 @@
         "emailMismatch": "Emails do not match",
         "recaptchaExpired": "Verification expired. Please try again.",
         "somethingWentWrong": "Something went wrong. Please try again."
+    },
+    "status": {
+        "active": "Active",
+        "expired": "Expired",
+        "deleted": "Deleted"
     }
 }

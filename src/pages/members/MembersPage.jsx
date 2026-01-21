@@ -130,10 +130,12 @@ export function MembersPage() {
         payInsurance: false,
     });
 
+    const [showPlanSelectionDialog, setShowPlanSelectionDialog] = useState(false);
+    const [activePlansForEdit, setActivePlansForEdit] = useState([]);
     // Edit Plan Form state
     const [editPlanForm, setEditPlanForm] = useState({
         planId: '',
-        startDate: new Date().toISOString().split('T')[0],
+        startDate: '',
         isFullyPaid: true,
         amountPaid: '',
         includeInsurance: false,
@@ -272,6 +274,7 @@ export function MembersPage() {
             { header: 'Outstanding (MAD)', key: 'outstanding', width: 18 },
             { header: 'Start Date', key: 'startDate', width: 15 },
             { header: 'End Date', key: 'endDate', width: 15 },
+            { header: 'Total Plans', key: 'totalPlans', width: 12 },
         ];
 
         // Format Headers
@@ -299,7 +302,9 @@ export function MembersPage() {
                 pricePaid: pricePaid,
                 outstanding: outstanding,
                 startDate: member.currentSubscription?.startDate ? new Date(member.currentSubscription.startDate).toLocaleDateString() : 'N/A',
-                endDate: member.currentSubscription?.endDate ? new Date(member.currentSubscription.endDate).toLocaleDateString() : 'N/A'
+                startDate: member.currentSubscription?.startDate ? new Date(member.currentSubscription.startDate).toLocaleDateString() : 'N/A',
+                endDate: member.currentSubscription?.endDate ? new Date(member.currentSubscription.endDate).toLocaleDateString() : 'N/A',
+                totalPlans: member.subscriptionHistory?.length || 0
             });
 
             // Styling Logic
@@ -400,6 +405,7 @@ export function MembersPage() {
                 price: planPrice,
                 startDate: new Date().toISOString(),
                 endDate: new Date(Date.now() + selectedPlan.duration * 24 * 60 * 60 * 1000).toISOString(),
+                sequenceNumber: 1
             };
 
             // Upload CNI file if provided
@@ -429,20 +435,52 @@ export function MembersPage() {
                 phone: memberForm.phone,
                 currentSubscription: initialSubscription,
                 subscriptionHistory: [initialSubscription],
-                payments: [{
-                    amount: amountPaid,
-                    type: 'initial_registration',
-                    date: new Date().toISOString(),
-                    note: `Initial registration`
-                }],
+                payments: [], // Will be populated below
                 insuranceStatus: memberForm.includeInsurance ? 'active' : 'none',
                 insuranceFee: insuranceFee,
                 warnings: [],
                 outstandingBalance: outstandingBalance,
                 totalPaid: amountPaid,
-                isDeleted: false,
-                createdAt: serverTimestamp(),
+                gymId: userProfile?.gymId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString() // Assuming updated at is same creation
             };
+
+            // Calculate payments if any
+            if (amountPaid > 0) {
+                const payments = [];
+                let remainingAmount = amountPaid;
+
+                // 1. Separate Insurance Payment if applicable
+                if (memberForm.includeInsurance && remainingAmount > 0) {
+                    const insuranceAmount = Number(memberForm.insuranceFee) || 50;
+                    const payForInsurance = Math.min(remainingAmount, insuranceAmount);
+
+                    payments.push({
+                        amount: payForInsurance,
+                        type: 'insurance',
+                        date: new Date().toISOString(),
+                        note: `Insurance Fee`,
+                    });
+
+                    remainingAmount -= payForInsurance;
+                }
+
+                // 2. Remaining goes to Plan (Initial Payment)
+                if (remainingAmount > 0) {
+                    payments.push({
+                        amount: remainingAmount,
+                        type: 'initial_payment',
+                        date: new Date(Date.now() + 1000).toISOString(),
+                        note: `Initial membership and subscription payment for ${selectedPlan.name}`,
+                    });
+                }
+
+                newMember.payments = payments;
+            }
+            newMember.isDeleted = false;
+            newMember.createdAt = serverTimestamp();
+            newMember.updatedAt = serverTimestamp(); // Use serverTimestamp for Firestore
 
             await addDoc(collection(db, `gyms/${userProfile.gymId}/members`), newMember);
 
@@ -694,17 +732,58 @@ export function MembersPage() {
     };
 
     // Open Edit Plan Dialog
+    // Open Edit Plan Dialog (Step 1: Selection)
     const openEditPlanDialog = (member) => {
         setSelectedMember(member);
+
+        // Filter active plans (not deleted, not expired)
+        const history = member.subscriptionHistory || [];
+        const activePlans = history.filter(sub => !sub.deleted && new Date(sub.endDate) > new Date());
+
+        // Sort by start date desc (newest first)
+        activePlans.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+
+        if (activePlans.length === 0) {
+            toast.error(t('members.noActivePlansToEdit'));
+            return;
+        }
+
+        // Calculate dynamic ranks for display
+        const nonDeletedHistory = history.filter(sub => !sub.deleted).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
+        const plansWithRank = activePlans.map(plan => {
+            const rank = nonDeletedHistory.findIndex(p => p.startDate === plan.startDate && p.planId === plan.planId) + 1;
+            let rankLabel = '';
+            if (rank > 0) {
+                const ordinal = (rank % 10 === 1 && rank % 100 !== 11) ? 'st' :
+                    (rank % 10 === 2 && rank % 100 !== 12) ? 'nd' :
+                        (rank % 10 === 3 && rank % 100 !== 13) ? 'rd' : 'th';
+                rankLabel = `${rank}${ordinal} Plan`;
+            }
+            return { ...plan, rankLabel };
+        });
+
+        setActivePlansForEdit(plansWithRank);
+        setShowPlanSelectionDialog(true);
+    };
+
+    const handleSelectPlanToEdit = (plan) => {
+        setShowPlanSelectionDialog(false);
+
         setEditPlanForm({
-            planId: member.currentSubscription?.planId || '',
-            startDate: member.currentSubscription?.startDate
-                ? new Date(member.currentSubscription.startDate).toISOString().split('T')[0]
+            planId: plan.planId || '', // Use the planId from the selected subscription
+            startDate: plan.startDate
+                ? new Date(plan.startDate).toISOString().split('T')[0]
                 : new Date().toISOString().split('T')[0],
             isFullyPaid: true,
             amountPaid: '',
             includeInsurance: false,
+            // Store the original plan reference if needed for updating specific history items later
+            // For now, standard edit behavior creates a new entry/updates current. 
+            // If we strictly want to modify THIS entry, we'd need its index.
+            originalCreatedAt: plan.createdAt
         });
+
         setShowEditPlanDialog(true);
     };
 
@@ -752,13 +831,28 @@ export function MembersPage() {
                 price: newPlanPrice,
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString(),
+                sequenceNumber: (selectedMember.subscriptionHistory?.length || 0) + 1,
+                edited: true // Mark as an edited/outcome plan
             };
 
             // Prepare update data
+            // 1. Mark original plan as deleted (replaced)
+            const updatedHistory = [...(selectedMember.subscriptionHistory || [])];
+            if (editPlanForm.originalCreatedAt) {
+                const originalIndex = updatedHistory.findIndex(h => h.createdAt === editPlanForm.originalCreatedAt);
+                if (originalIndex !== -1) {
+                    updatedHistory[originalIndex] = {
+                        ...updatedHistory[originalIndex],
+                        deleted: true,
+                        deletedAt: new Date().toISOString()
+                    };
+                }
+            }
+
             const updateData = {
                 currentSubscription: newSubscription,
                 subscriptionHistory: [
-                    ...(selectedMember.subscriptionHistory || []),
+                    ...updatedHistory,
                     { ...newSubscription, createdAt: new Date().toISOString() }
                 ],
                 outstandingBalance: (selectedMember.outstandingBalance || 0) + additionalOutstanding,
@@ -766,14 +860,64 @@ export function MembersPage() {
             };
 
             // Record payment if any
-            if (amountPaid > 0) {
-                const payments = selectedMember.payments || [];
-                payments.push({
-                    amount: amountPaid,
-                    type: 'plan_change',
-                    date: new Date().toISOString(),
-                    note: `Plan changed to ${newPlan.name}${insuranceFee > 0 ? ' + Insurance' : ''}`,
+            // Record payment if any
+            let payments = selectedMember.payments || [];
+
+            // 2. Mark original payment as deleted if found
+            if (editPlanForm.originalCreatedAt) {
+                // We look for a payment that matches the original plan's timeframe or context
+                // Since we don't have a direct ID link, we try to match by date proximity or type
+                // A safe heuristic: type is 'initial_payment' or 'plan_change' AND date is close to originalCreatedAt
+                // Or we can just look for the payment that was likely created with that subscription.
+
+                // Since we now separate payments, we can be more aggressive.
+                // We will look for the payment created around the same time (within 5 seconds)
+                const originalTime = new Date(editPlanForm.originalCreatedAt).getTime();
+
+                const paymentIndex = payments.findIndex(p => {
+                    const pTime = new Date(p.date).getTime();
+                    return !p.deleted &&
+                        (p.type === 'initial_payment' || p.type === 'plan_change') &&
+                        Math.abs(pTime - originalTime) < 10000; // 10 seconds window
                 });
+
+                if (paymentIndex !== -1) {
+                    payments[paymentIndex] = {
+                        ...payments[paymentIndex],
+                        deleted: true,
+                        deletedAt: new Date().toISOString()
+                    };
+                }
+            }
+
+            if (amountPaid > 0) {
+                let remainingAmount = amountPaid;
+
+                // 1. Separate Insurance Payment if applicable (during edit)
+                if (insuranceFee > 0 && remainingAmount > 0) {
+                    const payForInsurance = Math.min(remainingAmount, insuranceFee);
+                    payments = [...payments, {
+                        amount: payForInsurance,
+                        type: 'insurance',
+                        date: new Date().toISOString(),
+                        note: 'Insurance Fee (Plan Edit)',
+                    }];
+                    remainingAmount -= payForInsurance;
+                }
+
+                // 2. Remaining goes to Plan Change
+                if (remainingAmount > 0) {
+                    payments = [...payments, {
+                        amount: remainingAmount,
+                        type: 'plan_change',
+                        date: new Date(Date.now() + 1000).toISOString(), // Slightly after insurance
+                        note: `Plan changed to ${newPlan.name}`,
+                    }];
+                }
+
+                updateData.payments = payments;
+            } else {
+                // If no new payment but we deleted old one, we still need to update payments
                 updateData.payments = payments;
             }
 
@@ -916,6 +1060,7 @@ export function MembersPage() {
                                     <TableHead className="w-[40px]"></TableHead>
                                     <TableHead>{t('members.member')}</TableHead>
                                     <TableHead>{t('plans.plan')}</TableHead>
+                                    <TableHead className="text-center">Plans</TableHead>
                                     <TableHead>{t('members.payment')}</TableHead>
                                     <TableHead className="text-center rtl:text-center">{t('plans.insurance')}</TableHead>
                                     <TableHead>{t('common.status')}</TableHead>
@@ -965,6 +1110,35 @@ export function MembersPage() {
                                                     <Badge variant="outline" className="font-normal border-slate-200 dark:border-slate-700">
                                                         {plan?.name || t('members.noPlan')}
                                                     </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div className="flex justify-center cursor-help">
+                                                                    <Badge variant="secondary" className="font-mono">
+                                                                        {member.subscriptionHistory?.length || 0}
+                                                                    </Badge>
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="p-0 border-none shadow-xl">
+                                                                <div className="bg-popover text-popover-foreground rounded-lg border shadow-sm p-3 min-w-[200px]">
+                                                                    <div className="font-semibold border-b pb-2 mb-2 text-sm">Plan History</div>
+                                                                    <div className="space-y-2">
+                                                                        {member.subscriptionHistory?.slice().reverse().map((sub, i) => (
+                                                                            <div key={i} className={`text-xs flex justify-between items-center ${sub.deleted ? 'opacity-50 line-through' : ''}`}>
+                                                                                <span className="font-medium">{sub.planName}</span>
+                                                                                <span className="text-muted-foreground">{new Date(sub.startDate).toLocaleDateString()}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                        {(!member.subscriptionHistory || member.subscriptionHistory.length === 0) && (
+                                                                            <span className="text-xs text-muted-foreground italic">No history</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
                                                 </TableCell>
                                                 <TableCell>
                                                     {outstanding > 0 ? (
@@ -1068,7 +1242,7 @@ export function MembersPage() {
                                                                         <Edit className="mr-2 h-4 w-4" />
                                                                         {t('members.editMember')}
                                                                     </DropdownMenuItem>
-                                                                    <DropdownMenuItem onClick={() => navigate(`/members/${member.id}/edit-plan`)}>
+                                                                    <DropdownMenuItem onClick={() => openEditPlanDialog(member)}>
                                                                         <Calendar className="mr-2 h-4 w-4" />
                                                                         {t('members.editPlan')}
                                                                     </DropdownMenuItem>
@@ -1555,6 +1729,33 @@ export function MembersPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Plan Selection Dialog */}
+            <Dialog open={showPlanSelectionDialog} onOpenChange={setShowPlanSelectionDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Select Plan to Edit</DialogTitle>
+                        <DialogDescription>Choose an active plan to modify.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 mt-2">
+                        {activePlansForEdit.map((plan, i) => (
+                            <div
+                                key={i}
+                                className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => handleSelectPlanToEdit(plan)}
+                            >
+                                <div>
+                                    <div className="font-semibold">{plan.planName} <span className="text-xs text-muted-foreground ml-2 bg-secondary px-2 py-0.5 rounded-full">{plan.rankLabel}</span></div>
+                                    <div className="text-sm text-muted-foreground">
+                                        {new Date(plan.startDate).toLocaleDateString()} - {new Date(plan.endDate).toLocaleDateString()}
+                                    </div>
+                                </div>
+                                <div className="font-bold text-sm">{plan.price} MAD</div>
+                            </div>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Edit Plan Dialog */}
             <Dialog open={showEditPlanDialog} onOpenChange={setShowEditPlanDialog}>
                 <DialogContent className="max-w-md">
@@ -1693,6 +1894,6 @@ export function MembersPage() {
                 aspectRatio={1}
             />
 
-        </DashboardLayout>
+        </DashboardLayout >
     );
 }
